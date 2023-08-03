@@ -1,0 +1,77 @@
+version: '3.8'
+
+services:
+  postgres:
+    container_name: postgres
+    image: postgres:latest
+    restart: always
+    hostname: localhost
+    ports:
+      - 5432:5432
+    env_file:
+    - .env
+    networks:
+      - app-network
+
+  mongo:
+    image: mongo
+    restart: always
+    env_file:
+    - .env
+    ports:
+      - 27017:27017
+    networks:
+      - app-network
+  
+  migration:
+    image: ederlyncas/eduedu-escola-backend # TODO: Alterar para imagem oficial de PROD
+    depends_on: 
+      - postgres
+      - mongo
+    env_file:
+    - .env
+    command: >
+      sh -c "npx prisma migrate reset --force && npx prisma migrate deploy"
+    networks:
+      - app-network
+  
+  backend:
+    image: ederlyncas/eduedu-escola-backend # TODO: Alterar para imagem oficial de PROD
+    depends_on: 
+      - postgres
+      - mongo
+      - migration
+    ports:
+      - ${API_PORT}:3000
+    env_file:
+    - .env
+    networks:
+      - app-network
+  
+  admin:
+    image: admin
+    build: https://github.com/ederfrancolyncas/eduedu-escola-admin.git
+    depends_on:
+      - backend
+    ports:
+      - 8080:80
+    env_file:
+    - .env
+    networks:
+      - app-network
+  
+  aluno:
+    image: aluno
+    build: https://github.com/ederfrancolyncas/eduedu-escola-aluno.git
+    depends_on:
+      - backend
+    ports:
+      - 9090:80
+    env_file:
+    - .env
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge

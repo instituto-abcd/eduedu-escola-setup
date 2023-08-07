@@ -215,9 +215,9 @@ main() {
 
     if curl -s http://127.0.0.1:$API_PORT/swagger > /dev/null
     then
-        echo -e "${BWhite}Recompilando Instalação do EduEdu Escola..."
+        echo -e "${BWhite}Recompilando Instalação do EduEdu Escola - Versão ${APP_VERSION}"
     else
-        echo -e "${BWhite}Iniciando Instalação do EduEdu Escola..."
+        echo -e "${BWhite}Iniciando Instalação do EduEdu Escola - Versão ${APP_VERSION}"
     fi
 
     echo -e ""
@@ -236,7 +236,7 @@ main "$@"
 end=`date +%s`
 execution_time=$(($end-$start))
 
-echo -e "${BIGreen}EduEdu Escola v1.0 ${BWhite}ready in ${BYellow}${execution_time}s"
+echo -e "${BIGreen}EduEdu Escola - Versão ${APP_VERSION} - ${BWhite}Tempo de inicialização: ${BYellow}${execution_time}s"
 echo -e ""
 echo -e "${White}→   ${BWhite}Portal Admin:   ${API_URL}:${ADMIN_PORT}"
 echo -e "${White}→   ${BWhite}Portal Aluno:   ${API_URL}:${ALUNO_PORT}"

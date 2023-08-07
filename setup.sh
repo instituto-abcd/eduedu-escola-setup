@@ -106,6 +106,14 @@ ensure_docker() {
   }
 }
 
+ensure_curl() {
+  {
+    curl --version >/dev/null 2>&1
+  } || {
+    return 1
+  }
+}
+
 build_frontend() {
     echo -e "${BBlue}------------ Construção das Imagens Frontend ------------"
 
@@ -166,8 +174,39 @@ init() {
     echo -e ""    
 }
 
+setIPMachine() {
+    case "$OSTYPE" in
+        solaris*) OS_NAME="SOLARIS" ;;
+        darwin*)  OS_NAME="OSX" ;; 
+        linux*)   OS_NAME="LINUX" ;;
+        bsd*)     OS_NAME="BSD" ;;
+        msys*)    OS_NAME="WINDOWS" ;;
+        *)        OS_NAME="unknown: $OSTYPE" ;;
+    esac
+
+    if [ $OS_NAME = "WINDOWS" ]; then
+        API_URL=${LOCAL_IP:-`ipconfig.exe | grep -im1 'IPv4 Address' | cut -d ':' -f2`}
+    else
+        API_URL=${LOCAL_IP:-`ifconfig | sed -En 's/127.0.0.1//;s/.*inet (addr:)?(([0-9]*\.){3}[0-9]*).*/\2/p'`}
+    fi
+
+    MACHINE_IP=`echo $API_URL | sed 's/ *$//g'`
+
+    if ! grep -q $MACHINE_IP ".env"; then
+        echo "API_URL=http://${MACHINE_IP}" >> .env
+    fi
+
+}
+
 main() {
+
+    setIPMachine
     source .env
+
+    ensure_curl || {
+        echo_fail "${BWhite}CURL não encontrado. Por favor, efetue a instalação do CURL e tente novamente (https://curl.se/download.html)."
+        exit 1
+    }
 
     ensure_docker || {
         echo_fail "${BWhite}Docker não encontrado. Por favor, efetue a instalação do Docker e tente novamente (https://docs.docker.com/engine/install/)."
@@ -175,12 +214,12 @@ main() {
     }
 
     if curl -s http://127.0.0.1:$API_PORT/swagger > /dev/null
-    then echo -e "${BWhite}Recompilando Instalação do EduEdu Escola..."
-    else echo -e "${BWhite}Iniciando Instalação do EduEdu Escola..."
+    then
+        echo -e "${BWhite}Recompilando Instalação do EduEdu Escola..."
+    else
+        echo -e "${BWhite}Iniciando Instalação do EduEdu Escola..."
     fi
 
-    # TODO: Obter IP da máquina na rede e sobrescrever a var API_URL no arquivo .env
-    
     echo -e ""
 
     build_frontend || {

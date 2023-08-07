@@ -192,7 +192,7 @@ setIPMachine() {
 
     MACHINE_IP=`echo $API_URL | sed 's/ *$//g'`
 
-    if ! grep -q $MACHINE_IP ".env"; then
+    if ! grep -q 'API_URL=' ".env"; then
         echo "API_URL=http://${MACHINE_IP}" >> .env
     fi
 
@@ -238,5 +238,5 @@ execution_time=$(($end-$start))
 
 echo -e "${BIGreen}EduEdu Escola v1.0 ${BWhite}ready in ${BYellow}${execution_time}s"
 echo -e ""
-echo -e "${White}→   ${BWhite}Portal Admin:   http://127.0.0.1:8080"
-echo -e "${White}→   ${BWhite}Portal Aluno:   http://127.0.0.1:9090"
+echo -e "${White}→   ${BWhite}Portal Admin:   ${API_URL}:${ADMIN_PORT}"
+echo -e "${White}→   ${BWhite}Portal Aluno:   ${API_URL}:${ALUNO_PORT}"

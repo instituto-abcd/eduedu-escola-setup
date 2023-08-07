@@ -131,6 +131,17 @@ build_frontend() {
     echo -e ""
 }
 
+build_backend() {
+    echo -e "${BBlue}------------ Construção da Imagem Backend ------------"
+
+    # Build Backend
+    docker-compose build backend --quiet &
+    spinner $! 'Imagem do Backend' $BYellow
+
+    echo -e "${BBlue}---------------------------------------------------------"
+    echo -e ""
+}
+
 compose_containers() {
     echo -e "${BBlue}------- Inicialização dos Containers da Aplicação -------"
     docker-compose up -d --quiet-pull
@@ -221,6 +232,10 @@ main() {
     fi
 
     echo -e ""
+
+    build_backend || {
+        echo_fail
+    }
 
     build_frontend || {
         echo_fail

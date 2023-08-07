@@ -6,6 +6,8 @@ services:
     image: postgres:latest
     restart: always
     hostname: localhost
+    volumes:
+    - ./postgres-data:/var/lib/postgresql/data
     ports:
       - 5432:5432
     env_file:
@@ -16,6 +18,8 @@ services:
   mongo:
     image: mongo
     restart: always
+    volumes:
+    - ./mongodb-data:/data/db
     env_file:
     - .env
     ports:
@@ -24,7 +28,8 @@ services:
       - app-network
   
   migration:
-    image: ederlyncas/eduedu-escola-backend # TODO: Alterar para imagem oficial de PROD
+    image: backend:${APP_VERSION}
+    build: https://github.com/instituto-abcd/eduedu-escola-backend.git#${APP_VERSION}
     depends_on: 
       - postgres
       - mongo
@@ -36,7 +41,8 @@ services:
       - app-network
   
   backend:
-    image: ederlyncas/eduedu-escola-backend # TODO: Alterar para imagem oficial de PROD
+    image: backend:${APP_VERSION}
+    build: https://github.com/instituto-abcd/eduedu-escola-backend.git#${APP_VERSION}
     depends_on: 
       - postgres
       - mongo

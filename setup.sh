@@ -185,7 +185,7 @@ setIPMachine() {
     esac
 
     if [ $OS_NAME = "WINDOWS" ]; then
-        API_URL=${LOCAL_IP:-`ipconfig.exe | grep -im1 'IPv4 Address' | cut -d ':' -f2`}
+        API_URL=${LOCAL_IP:-`ipconfig.exe | grep -im1 -a 'IPv4' | cut -d ':' -f2`}
     else
         API_URL=${LOCAL_IP:-`ifconfig | sed -En 's/127.0.0.1//;s/.*inet (addr:)?(([0-9]*\.){3}[0-9]*).*/\2/p'`}
     fi

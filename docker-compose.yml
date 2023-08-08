@@ -54,7 +54,7 @@ services:
   
   admin:
     image: admin:${APP_VERSION}
-    build: https://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@github.com/instituto-abcd/eduedu-escola-admin.git#${APP_VERSION} # TODO: Remover Token quando os repositórios se tornarem Públicos
+    build: https://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@github.com/instituto-abcd/eduedu-escola-admin.git#${APP_VERSION} # TODO: Remover Token quando os repositórios se tornarem Públicos
     depends_on:
       - backend
     ports:
@@ -66,7 +66,7 @@ services:
   
   aluno:
     image: aluno:${APP_VERSION}
-    build: https://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@github.com/instituto-abcd/eduedu-escola-aluno.git#${APP_VERSION} # TODO: Remover Token quando os repositórios se tornarem Públicos
+    build: https://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@github.com/instituto-abcd/eduedu-escola-aluno.git#${APP_VERSION} # TODO: Remover Token quando os repositórios se tornarem Públicos
     depends_on:
       - backend
     ports:

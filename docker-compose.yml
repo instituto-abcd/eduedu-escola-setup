@@ -7,9 +7,9 @@ services:
     restart: always
     hostname: localhost
     volumes:
-    - ./postgres-data:/var/lib/postgresql/data
+    - ${POSTGRES_DATA}:/var/lib/postgresql/data
     ports:
-      - 5432:5432
+      - ${POSTGRES_PORT}:5432
     env_file:
     - .env
     networks:
@@ -19,11 +19,11 @@ services:
     image: mongo
     restart: always
     volumes:
-    - ./mongodb-data:/data/db
+    - ${MONGODB_DATA}:/data/db
     env_file:
     - .env
     ports:
-      - 27017:27017
+      - ${MONGO_PORT}:27017
     networks:
       - app-network
   

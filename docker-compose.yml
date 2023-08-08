@@ -32,6 +32,8 @@ services:
     depends_on: 
       - postgres
       - mongo
+    extra_hosts:
+      - host.docker.internal:host-gateway
     env_file:
     - .env
     command: >
@@ -45,6 +47,8 @@ services:
       - postgres
       - mongo
       - migration
+    extra_hosts:
+      - host.docker.internal:host-gateway
     ports:
       - ${API_PORT}:3000
     env_file:

@@ -119,24 +119,8 @@ build_frontend() {
 
     VITE_API_URL="${API_URL}:${API_PORT}/"
 
-    # Build Admin Site
-    docker-compose build --build-arg ARG_VITE_API_URL=$VITE_API_URL admin --quiet &
-    spinner $! 'Imagem do Portal Admin' $BYellow
-
-    # Build Aluno Site
-    docker-compose build --build-arg ARG_VITE_API_URL=$VITE_API_URL aluno --quiet &
-    spinner $! 'Imagem do Portal Aluno' $BYellow
-
-    echo -e "${BBlue}---------------------------------------------------------"
-    echo -e ""
-}
-
-build_backend() {
-    echo -e "${BBlue}------------ Construção da Imagem Backend ------------"
-
-    # Build Backend
-    docker-compose build backend --quiet &
-    spinner $! 'Imagem do Backend' $BYellow
+    docker-compose build --build-arg ARG_VITE_API_URL=$VITE_API_URL admin aluno --quiet &
+    spinner $! 'Imagens Frontend (Admin e Aluno)' $BYellow
 
     echo -e "${BBlue}---------------------------------------------------------"
     echo -e ""
@@ -232,10 +216,6 @@ main() {
     fi
 
     echo -e ""
-
-    build_backend || {
-        echo_fail
-    }
 
     build_frontend || {
         echo_fail

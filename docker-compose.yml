@@ -28,8 +28,7 @@ services:
       - app-network
   
   migration:
-    image: backend:${APP_VERSION}
-    build: https://github.com/instituto-abcd/eduedu-escola-backend.git#${APP_VERSION}
+    image: us-east1-docker.pkg.dev/edueduescola-teste/eduedu-escola-setup/eduedu-escola-backend:${APP_VERSION}
     depends_on: 
       - postgres
       - mongo
@@ -41,8 +40,7 @@ services:
       - app-network
   
   backend:
-    image: backend:${APP_VERSION}
-    build: https://github.com/instituto-abcd/eduedu-escola-backend.git#${APP_VERSION}
+    image: us-east1-docker.pkg.dev/edueduescola-teste/eduedu-escola-setup/eduedu-escola-backend:${APP_VERSION}
     depends_on: 
       - postgres
       - mongo
@@ -56,7 +54,7 @@ services:
   
   admin:
     image: admin:${APP_VERSION}
-    build: https://github.com/instituto-abcd/eduedu-escola-admin.git#${APP_VERSION}
+    build: https://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@github.com/instituto-abcd/eduedu-escola-admin.git#${APP_VERSION} # TODO: Remover Token quando os repositórios se tornarem Públicos
     depends_on:
       - backend
     ports:
@@ -68,7 +66,7 @@ services:
   
   aluno:
     image: aluno:${APP_VERSION}
-    build: https://github.com/instituto-abcd/eduedu-escola-aluno.git#${APP_VERSION}
+    build: https://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@github.com/instituto-abcd/eduedu-escola-aluno.git#${APP_VERSION} # TODO: Remover Token quando os repositórios se tornarem Públicos
     depends_on:
       - backend
     ports:

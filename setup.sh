@@ -193,20 +193,42 @@ setIPMachine() {
 
 }
 
+readIPMachineFromUser() {
+    if ! grep -q 'API_URL=' ".env"; then
+        echo -e "${BWhite}Informe o IP ou alias da máquina na Rede Interna: "
+        read MACHINE_IP
+        echo "IP ou alias informado: ${MACHINE_IP}"
+        echo "API_URL=http://${MACHINE_IP}" >> .env
+        echo ""
+    fi
+}
+
+prerequisites() {
+    if ! grep -q 'API_URL=' ".env"; then
+        echo -e "${BBlue}------------ Pré-requisitos para Instalação -------------"
+
+        ensure_curl & spinner $! 'Verificação da instalação do CURL' $BYellow || {
+            echo_fail "${BWhite}CURL não encontrado. Por favor, efetue a instalação do CURL e tente novamente (https://curl.se/download.html)."
+            exit 1
+        }
+
+        ensure_docker & spinner $! 'Verificação da instalação do Docker' $BYellow || {
+            echo_fail "${BWhite}Docker não encontrado. Por favor, efetue a instalação do Docker e tente novamente (https://docs.docker.com/engine/install/)."
+            exit 1
+        }
+
+        echo -e "${BBlue}---------------------------------------------------------"
+        echo ""
+    fi
+}
+
 main() {
+    
+    prerequisites
 
-    setIPMachine
+    readIPMachineFromUser
+    # setIPMachine
     source .env
-
-    ensure_curl || {
-        echo_fail "${BWhite}CURL não encontrado. Por favor, efetue a instalação do CURL e tente novamente (https://curl.se/download.html)."
-        exit 1
-    }
-
-    ensure_docker || {
-        echo_fail "${BWhite}Docker não encontrado. Por favor, efetue a instalação do Docker e tente novamente (https://docs.docker.com/engine/install/)."
-        exit 1
-    }
 
     if curl -s http://127.0.0.1:$API_PORT/swagger > /dev/null
     then
@@ -215,7 +237,7 @@ main() {
         echo -e "${BWhite}Iniciando Instalação do EduEdu Escola - Versão ${APP_VERSION}"
     fi
 
-    echo -e ""
+    echo ""
 
     build_frontend || {
         echo_fail

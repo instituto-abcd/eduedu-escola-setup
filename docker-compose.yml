@@ -10,6 +10,8 @@ services:
     - ${POSTGRES_DATA}:/var/lib/postgresql/data
     ports:
       - ${POSTGRES_PORT}:5432
+    extra_hosts:
+      - host.docker.internal:host-gateway
     env_file:
     - .env
     networks:
@@ -20,6 +22,8 @@ services:
     restart: always
     volumes:
     - ${MONGODB_DATA}:/data/db
+    extra_hosts:
+      - host.docker.internal:host-gateway
     env_file:
     - .env
     ports:
@@ -37,7 +41,7 @@ services:
     env_file:
     - .env
     command: >
-      sh -c "npx prisma migrate reset --force && npx prisma migrate deploy"
+      sh -c "npx prisma migrate deploy"
     networks:
       - app-network
   

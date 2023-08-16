@@ -128,6 +128,11 @@ build_frontend() {
 
 compose_containers() {
     echo -e "${BBlue}------- Inicialização dos Containers da Aplicação -------"
+    docker-compose up -d postgres --quiet-pull
+    docker-compose up -d mongo --quiet-pull
+
+    sleep 15
+
     docker-compose up -d --quiet-pull
     echo -e "${BBlue}---------------------------------------------------------"
     echo -e ""

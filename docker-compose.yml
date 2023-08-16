@@ -41,7 +41,7 @@ services:
     env_file:
     - .env
     command: >
-      sh -c "npx prisma migrate deploy"
+      sh -c "npx prisma migrate deploy && npx prisma db seed"
     networks:
       - app-network
   

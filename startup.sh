@@ -117,7 +117,7 @@ ensure_curl() {
 build_frontend() {
     echo -e "${BBlue}------------ Construção das Imagens Frontend ------------"
 
-    VITE_API_URL="${API_URL}:${API_PORT}/"
+    VITE_API_URL="${APP_URL}:${API_PORT}/"
 
     docker-compose build --build-arg ARG_VITE_API_URL=$VITE_API_URL admin aluno --quiet &
     spinner $! 'Imagens Frontend (Admin e Aluno)' $BYellow
@@ -185,31 +185,32 @@ setIPMachine() {
     esac
 
     if [ $OS_NAME = "WINDOWS" ]; then
-        API_URL=${LOCAL_IP:-`ipconfig.exe | grep -im1 -a 'IPv4' | cut -d ':' -f2`} # TODO: Rever esse comando (Está pegando o IP Público da máquina)
+        APP_URL=${LOCAL_IP:-`ipconfig.exe | grep -im1 -a 'IPv4' | cut -d ':' -f2`} # TODO: Rever esse comando (Está pegando o IP Público da máquina)
     else
-        API_URL=${LOCAL_IP:-`ifconfig | sed -En 's/127.0.0.1//;s/.*inet (addr:)?(([0-9]*\.){3}[0-9]*).*/\2/p'`}
+        APP_URL=${LOCAL_IP:-`ifconfig | sed -En 's/127.0.0.1//;s/.*inet (addr:)?(([0-9]*\.){3}[0-9]*).*/\2/p'`}
     fi
 
-    MACHINE_IP=`echo $API_URL | sed 's/ *$//g'`
+    MACHINE_IP=`echo $APP_URL | sed 's/ *$//g'`
 
-    if ! grep -q 'API_URL=' ".env"; then
-        echo "API_URL=http://${MACHINE_IP}" >> .env
+    if ! grep -q 'APP_URL=' ".env"; then
+        echo "APP_URL=http://${MACHINE_IP}" >> .env
     fi
 
 }
 
 readIPMachineFromUser() {
-    if ! grep -q 'API_URL=' ".env"; then
-        echo -e "${BWhite}Informe o IP ou alias da máquina na Rede Interna: "
-        read MACHINE_IP
-        echo "IP ou alias informado: ${MACHINE_IP}"
-        echo "API_URL=http://${MACHINE_IP}" >> .env
-        echo ""
-    fi
+    echo -e "${BWhite}Informe o IP ou alias da máquina na Rede Interna: "
+    read MACHINE_IP
+    echo "IP ou alias informado: ${MACHINE_IP}"
+    
+    APP_ADDRESS="APP_ADDRESS=${MACHINE_IP}"
+    sed -i "1s/.*/$APP_ADDRESS/" .env
+    
+    echo ""
 }
 
 prerequisites() {
-    if ! grep -q 'API_URL=' ".env"; then
+    if ! grep -q 'APP_URL=' ".env"; then
         echo -e "${BBlue}------------ Pré-requisitos para Instalação -------------"
 
         ensure_curl & spinner $! 'Verificação da instalação do CURL' $BYellow || {
@@ -260,5 +261,5 @@ execution_time=$(($end-$start))
 
 echo -e "${BIGreen}EduEdu Escola - Versão ${APP_VERSION} - ${BWhite}Tempo de inicialização: ${BYellow}${execution_time}s"
 echo -e ""
-echo -e "${White}→   ${BWhite}Portal Admin:   ${API_URL}:${ADMIN_PORT}"
-echo -e "${White}→   ${BWhite}Portal Aluno:   ${API_URL}:${ALUNO_PORT}"
+echo -e "${White}→   ${BWhite}Portal Admin:   ${APP_URL}:${ADMIN_PORT}"
+echo -e "${White}→   ${BWhite}Portal Aluno:   ${APP_URL}:${ALUNO_PORT}"

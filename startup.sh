@@ -119,7 +119,7 @@ build_frontend() {
 
     VITE_API_URL="${APP_URL}:${API_PORT}/"
 
-    docker-compose build --build-arg ARG_VITE_API_URL=$VITE_API_URL admin aluno --quiet &
+    docker-compose build --build-arg ARG_VITE_API_URL=$VITE_API_URL --build-arg ARG_VITE_ASSETS=LOCAL admin aluno --quiet &
     spinner $! 'Imagens Frontend (Admin e Aluno)' $BYellow
 
     echo -e "${BBlue}---------------------------------------------------------"

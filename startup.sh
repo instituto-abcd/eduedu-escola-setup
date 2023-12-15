@@ -171,7 +171,14 @@ init() {
     validate_admin
     validate_aluno
     echo -e "${BBlue}---------------------------------------------------------"
-    echo -e ""    
+    echo -e ""
+}
+
+stopCurrentContainers() {
+    echo -e "${BBlue}---------------- Parando containers da instalação atual ----------------"
+    docker-compose down
+    echo -e "${BBlue}---------------------------------------------------------"
+    echo -e ""
 }
 
 setIPMachine() {
@@ -242,6 +249,8 @@ main() {
     else
         echo -e "${BWhite}Iniciando Instalação do EduEdu Escola - Versão ${APP_VERSION}"
     fi
+
+    stopCurrentContainers
 
     echo ""
 

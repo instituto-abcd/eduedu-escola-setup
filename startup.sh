@@ -99,11 +99,21 @@ echo_fail() {
 }
 
 ensure_docker() {
-  {
-    docker ps -q >/dev/null 2>&1
-  } || {
-    return 1
-  }
+    which docker >/dev/null 2>&1 || return 1
+    docker ps -q >/dev/null 2>&1 || return 1
+
+    echo "Docker OK"
+}
+
+ensure_wsl() {
+    OUTPUT="$(wsl --status)" # Essa linha retorna um warning esquisito, mas que não interrompe a operação
+    WSL_VERSION=$(echo "$OUTPUT" | grep -o " [^ ]*$" | tail -1)
+
+    if [ $WSL_VERSION != 2 ]; then
+        return 1
+    fi
+
+    echo "WSL OK"
 }
 
 ensure_curl() {
@@ -112,6 +122,8 @@ ensure_curl() {
   } || {
     return 1
   }
+
+  echo "CURL OK"
 }
 
 build_frontend() {
@@ -208,6 +220,11 @@ setIPMachine() {
 readIPMachineFromUser() {
     echo -e "${BWhite}Informe o IP ou alias da máquina na Rede Interna: "
     read MACHINE_IP
+
+    if [ -z $MACHINE_IP ]; then
+        MACHINE_IP=127.0.0.1
+    fi
+
     echo "IP ou alias informado: ${MACHINE_IP}"
     
     APP_ADDRESS="APP_ADDRESS=${MACHINE_IP}"
@@ -217,22 +234,28 @@ readIPMachineFromUser() {
 }
 
 prerequisites() {
-    if ! grep -q 'APP_URL=' ".env"; then
-        echo -e "${BBlue}------------ Pré-requisitos para Instalação -------------"
+    echo -e "${BBlue}------------ Pré-requisitos para Instalação -------------"
 
-        ensure_curl & spinner $! 'Verificação da instalação do CURL' $BYellow || {
-            echo_fail "${BWhite}CURL não encontrado. Por favor, efetue a instalação do CURL e tente novamente (https://curl.se/download.html)."
-            exit 1
-        }
+    echo 'Verificação da instalação do CURL'
+    ensure_curl || {
+        echo_fail "${BWhite}CURL não encontrado. Por favor, efetue a instalação do CURL e tente novamente (https://curl.se/download.html)."
+        exit 1
+    }
 
-        ensure_docker & spinner $! 'Verificação da instalação do Docker' $BYellow || {
-            echo_fail "${BWhite}Docker não encontrado. Por favor, efetue a instalação do Docker e tente novamente (https://docs.docker.com/engine/install/)."
-            exit 1
-        }
+    echo 'Verificação da instalação do Docker'
+    ensure_docker || {
+        echo_fail "${BWhite}Não foi possível conectar ao Docker. Verifique sua instalação (https://docs.docker.com/engine/install/) ou inicie o serviço antes de prosseguir."
+        exit 1
+    }
 
-        echo -e "${BBlue}---------------------------------------------------------"
-        echo ""
-    fi
+    echo 'Verificação da versão do WSL'
+    ensure_wsl || {
+        echo_fail "${BWhite}Versão do WSL incompatível. Efetue a atualização seguindo os passos da documentação (https://learn.microsoft.com/pt-br/windows/wsl/install#upgrade-version-from-wsl-1-to-wsl-2)."
+        exit 1
+    }
+
+    echo -e "${BBlue}---------------------------------------------------------"
+    echo ""
 }
 
 main() {

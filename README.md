@@ -12,7 +12,16 @@ Os seguintes itens precisam ser atendidos antes de iniciar a instalação:
     - Linux
         - [Instalação Docker no Linux](https://docs.docker.com/engine/install/#server) <br><br>
 - [Instalação do CURL](https://curl.se/download.html)
+
+- Execução do script de instalação:
+    - Windows: Deve ser executado imprescindivelmente no GIT BASH.
+    - Linux: Deve ser executado imprescindivelmente no terminal.
+
+- Nível de permissão:
+    A instalação deve ser feita imprescindivelmente com um usuário administrador da máquina.
 <br>
+
+
 
 <h3 style="color:red;">ATENÇÃO</h3>
 Para o funcionamento do mecanismo de e-mail, será necessário uma credencial SMTP válida.<br>
@@ -24,29 +33,17 @@ Esse item é obrigatório para que os usuários cadastrados recebam o e-mail de 
 
 # Instalação
 
-### 1. Clone do repositório de instalação
-Abra o prompt de comando:
-- Se estiver no Windows, abra o GIT BASH
-- Se estiver no Linux, abra o terminal
+### 1. Acesse o diretório raíz do pacote de instalação
+- Se estiver no Windows, faça isso no GIT BASH
+- Se estiver no Linux, faça isso no terminal
 
-Efetue o clone do repositório através do comando abaixo:
-```
-git clone https://github.com/instituto-abcd/eduedu-escola-setup.git
-```
-
-### 2. Acesso ao diretório do repositório
-Execute o comando abaixo para entrar no diretório:
-```
-cd eduedu-escola-setup
-```
-
-### 3. Execução do script de instalação
+### 2. Execução do script de instalação
 Execute o comando abaixo para rodar o script de instalação:
 ```
 ./startup.sh
 ```
 
-### 4. Informando o IP ou alias da máquina na rede interna
+### 3. Informando o IP ou alias da máquina na rede interna
 Ao rodar o script de instalação, será solicitado o IP ou alias da máquina na rede interna.
 Para obter o IP da máquina, siga os passos abaixo:
 
@@ -61,7 +58,7 @@ Para obter o IP da máquina, siga os passos abaixo:
 
 ---
 
-### 5. Finalização da Instalação
+### 4. Finalização da Instalação
 
 Após finalizada a execução do script de instalação, será exibido um resultado similar ao da imagem abaixo:
 
@@ -90,6 +87,3 @@ Para mais detalhes sobre liberação de portas, acesse os links abaixo:
 ](https://learn.microsoft.com/pt-br/windows/security/operating-system-security/network-security/windows-firewall/create-an-inbound-port-rule)
 
 - Linux: // TODO...
-
-### Reiniciar os Serviços
-// TODO...

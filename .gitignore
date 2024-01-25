@@ -1,3 +1,5 @@
-mongodb-data
-postgres-data
-assets-data
+.vscode
+.idea
+.env
+.env.*
+!.env.example

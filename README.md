@@ -19,17 +19,13 @@ Antes de instalar qualquer coisa, certifique-se de ter os seguintes itens pronto
 ### Se você está usando o Linux:
 
 #### Superusuário:
-Para uma instalação mais fácil, você precisa saber a senha do seu usuário e ter certeza de que tem os seguintes itens:
-1. Docker
-2. Wget
-3. CURL
+- Para uma instalação mais fácil, você precisa saber a senha do seu usuário e ter certeza de que tem os seguintes itens:
 
 **Permissões:**
 Você precisará de privilégios de administrador para instalar.
 
 ## Importante!
-
-Para que tudo funcione corretamente, você precisará de uma credencial SMTP válida para o sistema de e-mail. Isso é essencial para que os usuários recebam a confirmação da conta por e-mail.
+- Para que tudo funcione corretamente, você precisará de uma credencial SMTP válida para o sistema de e-mail. Isso é essencial para que os usuários recebam a confirmação da conta por e-mail.
 
 ---
 

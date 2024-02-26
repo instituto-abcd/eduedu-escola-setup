@@ -1,4 +1,4 @@
-# Guia para Iniciantes: Pré-requisitos e Instalação
+# Guia Instalação EduEdu
 
 ## Antes de começar
 

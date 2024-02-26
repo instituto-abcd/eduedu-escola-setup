@@ -53,13 +53,16 @@ Para obter o IP da máquina, siga os passos abaixo:
     - Para visualizar o endereço IP de uma conexão com fio, selecione Ethernet no painel de menu à esquerda e escolha sua conexão de rede; seu endereço IP aparecerá ao lado de "Endereço IPv4".
     - Para visualizar o endereço IP de uma conexão sem fio, selecione Wi-Fi no painel de menu à esquerda e clique em Opções Avançadas; seu endereço IP aparecerá ao lado de "Endereço IPv4".
 
-- Linux 
+# Inicialização no Linux
+
 Para iniciar o processo no ambiente Linux, siga as instruções abaixo:
+
 1. Abra o terminal.
 2. Insira o seguinte comando:
 
-```bash
-sudo ./startup-linux.sh
+```
+sudo ./startup-linux.sh```
+
 
 ---
 

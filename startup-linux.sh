@@ -50,32 +50,76 @@ echo_fail() {
 }
 
 
+# Função para verificar se o usuário está no grupo docker
+check_docker_group() {
+  if groups | grep -q docker; then
+    echo "Usuário já está no grupo docker."
+  else
+    echo "Adicionando o usuário ao grupo docker..."
+    sudo usermod -aG docker $USER
+    echo "Faça logout e login novamente para que as alterações tenham efeito."
+  fi
+}
+
 # Função para garantir a instalação do Docker
 ensure_docker() {
-    if ! command -v docker &> /dev/null; then
-        echo "Instalando Docker..."
-        apt update # Atualizar a lista de pacotes
-        apt install ca-certificates curl -y # Autoridade de certificação
-        install -m 0755 -d /etc/apt/keyrings # Definir permissões de propriedade para o diretório /etc/apt/keyrings
-        curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc # Baixar chave com curl
-        chmod a+r /etc/apt/keyrings/docker.asc # Definir permissões de leitura para a chave
-        echo \
-          "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu \
-          $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
-          tee /etc/apt/sources.list.d/docker.list > /dev/null # Adicionir o repositório Docker à lista de fontes APT
-        apt update #Atualizar lista de repositórios:
-        apt install docker-compose-plugin -y #Instalar o Docker Compose
-        docker compose version #Verificar versão instalada
-        echo "Docker Instalado"
-    fi
+  # Verifica se o Docker já está instalado
+  if ! command -v docker &> /dev/null; then
+    echo "## Instalando Docker..."
 
+    # Atualiza a lista de pacotes
+    apt update
+
+    # Instala as dependências do Docker
+    apt-get install \
+      ca-certificates \
+      curl \
+      gnupg \
+      lsb-release
+
+    # Adiciona o repositório oficial do Docker
+    curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/trusted.gpg.d/docker.gpg
+    echo "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list
+
+    # Atualiza a lista de pacotes e instala o Docker
+    apt update
+    apt-get install docker-ce docker-ce-cli containerd.io
+
+    # Baixa e instala o Docker Compose
+    DOCKER_COMPOSE_VERSION="v2.8.0"
+    curl -L "https://github.com/docker/compose/releases/download/${DOCKER_COMPOSE_VERSION}/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+    chmod +x /usr/local/bin/docker-compose
+
+    # Verifica se o Docker está instalado corretamente
+    docker version
+
+    # Verifica se o Docker Compose está instalado corretamente
+    docker-compose version
+
+    # Exibe informações detalhadas sobre a instalação do Docker
+    docker info
+
+    # Exibe a ajuda do Docker Compose
+    docker-compose help
+
+    # Verifica se o Docker está em execução
     if ! docker ps -q >/dev/null 2>&1; then
-        echo_fail "Não foi possível conectar ao Docker. Verifique sua instalação ou inicie o serviço antes de prosseguir."
-        exit 1
+      echo_fail "Não foi possível conectar ao Docker. Verifique sua instalação ou inicie o serviço antes de prosseguir."
+      exit 1
     fi
 
-    echo "Docker OK"
+    # Verifica se o usuário está no grupo docker
+    check_docker_group
+
+    echo "## Docker instalado e configurado com sucesso!"
+  else
+    echo "## Docker já está instalado!"
+    docker info
+    docker-compose version
+  fi
 }
+
+
 
 # Função para construir as imagens frontend
 build_frontend() {
@@ -83,7 +127,7 @@ build_frontend() {
 
     VITE_API_URL="${APP_URL}:${API_PORT}/"
 
-    docker-compose build --build-arg ARG_VITE_API_URL=$VITE_API_URL --build-arg ARG_VITE_ASSETS=LOCAL --build-arg ARG_VITE_APP_VERSION=$APP_VERSION admin aluno --quiet &
+    docker compose build --build-arg ARG_VITE_API_URL=$VITE_API_URL --build-arg ARG_VITE_ASSETS=LOCAL --build-arg ARG_VITE_APP_VERSION=$APP_VERSION admin aluno --quiet &
     spinner $! 'Imagens Frontend (Admin e Aluno)'
 
     echo "---------------------------------------------------------"

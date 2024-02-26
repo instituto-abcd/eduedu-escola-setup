@@ -43,15 +43,15 @@ Execute o comando abaixo para rodar o script de instalação:
 ./startup.sh
 ```
 
-### 3. Informando o IP ou alias da máquina na rede interna
-Ao rodar o script de instalação, será solicitado o IP ou alias da máquina na rede interna.
-Para obter o IP da máquina, siga os passos abaixo:
+## 3. Informando o IP ou alias da máquina na rede interna
 
-- Windows
-    - Clique no ícone Iniciar e selecione Configurações.
-    - Clique no ícone Rede e Internet.
-    - Para visualizar o endereço IP de uma conexão com fio, selecione Ethernet no painel de menu à esquerda e escolha sua conexão de rede; seu endereço IP aparecerá ao lado de "Endereço IPv4".
-    - Para visualizar o endereço IP de uma conexão sem fio, selecione Wi-Fi no painel de menu à esquerda e clique em Opções Avançadas; seu endereço IP aparecerá ao lado de "Endereço IPv4".
+Após a execução do script de instalação, será solicitado o IP ou alias da máquina na rede interna. Para obter o IP da máquina, siga as instruções abaixo, conforme o sistema operacional.
+
+### Windows:
+
+1. Clique em Iniciar e selecione Configurações.
+2. Selecione Rede e Internet.
+3. Para visualizar o endereço IP, clique em "Ethernet" para conexões com fio ou "Wi-Fi" para conexões sem fio no painel à esquerda. O endereço IPv4 estará visível.
 
 # Inicialização no Linux
 
@@ -60,8 +60,8 @@ Para iniciar o processo no ambiente Linux, siga as instruções abaixo:
 1. Abra o terminal.
 2. Insira o seguinte comando:
 
-```
-sudo ./startup-linux.sh```
+```bash
+sudo ./startup-linux.sh
 
 
 ---
@@ -93,5 +93,3 @@ Para mais detalhes sobre liberação de portas, acesse os links abaixo:
 
 - Windows: [Criar uma regra de porta de entrada
 ](https://learn.microsoft.com/pt-br/windows/security/operating-system-security/network-security/windows-firewall/create-an-inbound-port-rule)
-
-- Linux: // TODO...

@@ -1,37 +1,38 @@
-# Guia Instalação EduEdu
+# Guia de Instalação EduEdu
 
-## Antes de começar
+## Antes de Começar
 
-Antes de instalar qualquer coisa, certifique-se de ter os seguintes itens prontos:
+Antes de iniciar a instalação, certifique-se de ter os seguintes itens prontos:
 
-### Se você está usando o Windows:
+### Para Usuários do Windows:
 
 #### GIT
 - Faça o download do GIT para Windows [aqui](https://git-scm.com/download/win).
 
 #### Docker
 1. Siga as instruções para instalar o WSL [aqui](https://learn.microsoft.com/pt-br/windows/wsl/install).
-2. Instale o Docker no Windows seguindo [estas instruções](https://docs.docker.com/desktop/install/windows-install/).
+2. Instale o Docker no Windows conforme [estas instruções](https://docs.docker.com/desktop/install/windows-install/).
 
 #### CURL
 - Baixe o CURL [aqui](https://curl.se/download.html).
 
-### Se você está usando o Linux:
+### Para Usuários do Linux:
 
 #### Superusuário:
-- Para uma instalação mais fácil, você precisa saber a senha do seu usuário e ter certeza de que tem os seguintes itens:
+Para facilitar a instalação, certifique-se de saber a senha do seu usuário e de possuir os seguintes itens:
 
 **Permissões:**
-Você precisará de privilégios de administrador para instalar.
+É necessário ter privilégios de administrador.
 
 ## Importante!
-- Para que tudo funcione corretamente, você precisará de uma credencial SMTP válida para o sistema de e-mail. Isso é essencial para que os usuários recebam a confirmação da conta por e-mail.
+
+Para garantir o funcionamento adequado, é crucial possuir uma credencial SMTP válida para o sistema de e-mail. Isso é essencial para que os usuários recebam a confirmação da conta por e-mail.
 
 ---
 
 ## Como Instalar
 
-### Se você está usando o Windows:
+### Para Usuários do Windows:
 
 1. **Encontrando seu Endereço IP:**
    - Clique em "Iniciar" e vá para "Configurações".
@@ -47,10 +48,10 @@ Você precisará de privilégios de administrador para instalar.
    ```
 
 4. **Durante a Instalação:**
-   - O script solicitará seu endereço IP.
+   - Durante a instalação, será solicitado seu endereço IP.
    - Informe o endereço IPv4 obtido na etapa 1.
 
-### Se você está usando o Linux:
+### Para Usuários do Linux:
 
 1. **Abrindo o Terminal:**
    - Execute o seguinte comando:
@@ -62,7 +63,7 @@ Você precisará de privilégios de administrador para instalar.
 
 **Conclusão da Instalação**
 
-Após o término do script, você verá um resultado semelhante à imagem abaixo:
+Após a conclusão do script, você verá um resultado semelhante à imagem abaixo:
 
 ![Instalação Concluída](./docs/installation-done.png)
 

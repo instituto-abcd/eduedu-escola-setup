@@ -23,10 +23,6 @@ Para realizar a instalação automática, é necessário possuir a senha do usu�
 2. Wget
 3. CURL
 
-**Execução do script de instalação:**
-- **Windows**: Utilize o GIT BASH.
-- **Linux**: Execute no terminal.
-
 **Nível de permissão:**
 A instalação requer privilégios de administrador.
 
@@ -45,7 +41,7 @@ Para o correto funcionamento do sistema de e-mail, é essencial uma credencial S
    - Encontre o endereço IP clicando em "Ethernet" para conexões com fio ou "Wi-Fi" para conexões sem fio. O endereço IPv4 estará visível.
 
 2. **Acessando o Diretório Raíz:**
-   - Utilize o terminal.
+   - Utilize o terminal GIT BASH.
 
 3. **Executando o Script de Instalação:**
    ```bash

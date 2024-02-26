@@ -60,8 +60,9 @@ Para iniciar o processo no ambiente Linux, siga as instruções abaixo:
 1. Abra o terminal.
 2. Insira o seguinte comando:
 
-```bash
+```
 sudo ./startup-linux.sh
+```
 
 
 ---

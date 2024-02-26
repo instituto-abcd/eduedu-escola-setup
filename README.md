@@ -1,96 +1,85 @@
 # Pré-requisitos
 
-Os seguintes itens precisam ser atendidos antes de iniciar a instalação:
-- Instalação do GIT
-    - [Windows](https://git-scm.com/download/win)
-    - [Linux](https://git-scm.com/download/linux)<br><br>
+Antes de iniciar a instalação, certifique-se de atender aos seguintes requisitos:
 
-- Instalação do Docker
-    - Windows
-        - [Instalação WSL](https://learn.microsoft.com/pt-br/windows/wsl/install)
-        - [Instalação Docker no Windows](https://docs.docker.com/desktop/install/windows-install/)
-    - Linux
-        - [Instalação Docker no Linux](https://docs.docker.com/engine/install/#server) <br><br>
-- [Instalação do CURL](https://curl.se/download.html)
+## GIT
+- **Windows**: [Download do GIT para Windows](https://git-scm.com/download/win)
+- **Linux**: [Download do GIT para Linux](https://git-scm.com/download/linux)
 
-- Execução do script de instalação:
-    - Windows: Deve ser executado imprescindivelmente no GIT BASH.
-    - Linux: Deve ser executado imprescindivelmente no terminal.
+## Docker
+- **Windows**:
+  - [Instalação WSL](https://learn.microsoft.com/pt-br/windows/wsl/install)
+  - [Instalação Docker no Windows](https://docs.docker.com/desktop/install/windows-install/)
+- **Linux**: [Instalação Docker no Linux](https://docs.docker.com/engine/install/#server)
 
-- Nível de permissão:
-    A instalação deve ser feita imprescindivelmente com um usuário administrador da máquina.
-<br>
+## CURL
+- [Download do CURL](https://curl.se/download.html)
 
+**Execução do script de instalação:**
+- **Windows**: Utilize o GIT BASH.
+- **Linux**: Execute no terminal.
 
+**Nível de permissão:**
+A instalação requer privilégios de administrador.
 
-<h3 style="color:red;">ATENÇÃO</h3>
-Para o funcionamento do mecanismo de e-mail, será necessário uma credencial SMTP válida.<br>
-<b><span style="color:red;">
-Esse item é obrigatório para que os usuários cadastrados recebam o e-mail de confirmação de conta.
-</span></b>
+## ATENÇÃO
+Para o correto funcionamento do sistema de e-mail, é essencial uma credencial SMTP válida. Este requisito é obrigatório para que os usuários recebam o e-mail de confirmação da conta.
 
 ---
 
 # Instalação
 
-### 1. Acesse o diretório raíz do pacote de instalação
-- Se estiver no Windows, faça isso no GIT BASH
-- Se estiver no Linux, faça isso no terminal
+**1. Acesse o diretório raíz do pacote de instalação:**
+- No Windows, utilize o GIT BASH.
+- No Linux, utilize o terminal.
 
-### 2. Execução do script de instalação
-Execute o comando abaixo para rodar o script de instalação:
-```
+**2. Execute o script de instalação:**
+```bash
 ./startup.sh
 ```
 
-## 3. Informando o IP ou alias da máquina na rede interna
+**3. Informando o IP ou alias da máquina na rede interna:**
 
-Após a execução do script de instalação, será solicitado o IP ou alias da máquina na rede interna. Para obter o IP da máquina, siga as instruções abaixo, conforme o sistema operacional.
+Após a execução do script, insira o IP ou alias da máquina. Siga as instruções abaixo conforme o sistema operacional.
 
 ### Windows:
-
 1. Clique em Iniciar e selecione Configurações.
-2. Selecione Rede e Internet.
-3. Para visualizar o endereço IP, clique em "Ethernet" para conexões com fio ou "Wi-Fi" para conexões sem fio no painel à esquerda. O endereço IPv4 estará visível.
+2. Escolha Rede e Internet.
+3. Para visualizar o endereço IP, clique em "Ethernet" para conexões com fio ou "Wi-Fi" para conexões sem fio. O endereço IPv4 estará visível.
 
-# Inicialização no Linux
-
-Para iniciar o processo no ambiente Linux, siga as instruções abaixo:
+## Inicialização no Linux
+Para iniciar no ambiente Linux, siga as instruções abaixo:
 
 1. Abra o terminal.
-2. Insira o seguinte comando:
-
-```
+2. Execute o seguinte comando:
+```bash
 sudo ./startup-linux.sh
 ```
 
-
 ---
 
-### 4. Finalização da Instalação
+**4. Finalização da Instalação**
 
-Após finalizada a execução do script de instalação, será exibido um resultado similar ao da imagem abaixo:
+Após a conclusão do script, você verá um resultado semelhante à imagem abaixo:
 
 ![installation-done](./docs/installation-done.png)
 
-O Portal Admin poderá ser acessado no endereço:
-<b>http://<IP da máquina informado>:8080</b>
+**Portal Admin:**
+- Acesse em: http://<IP da máquina informado>:8080
 
-O Portal Aluno poderá ser acessado no endereço:
-<b>http://<IP da máquina informado>:9090</b>
+**Portal Aluno:**
+- Acesse em: http://<IP da máquina informado>:9090
 
 ---
 
 # Considerações
 
-### Liberação de Portas
+**Liberação de Portas**
 
-Para que os Portais Admin e Aluno sejam acessados na rede interna, será necessário efetuar a liberação das seguintes portas:
-- 8080 (Porta da aplicação Portal Admin)
-- 9090 (Porta da aplicação Portal Aluno)
-- 3000 (Porta da API)
+Para acessar os Portais Admin e Aluno na rede interna, libere as seguintes portas:
+- 8080 (Portal Admin)
+- 9090 (Portal Aluno)
+- 3000 (API)
 
-Para mais detalhes sobre liberação de portas, acesse os links abaixo:
-
-- Windows: [Criar uma regra de porta de entrada
-](https://learn.microsoft.com/pt-br/windows/security/operating-system-security/network-security/windows-firewall/create-an-inbound-port-rule)
+Detalhes sobre a liberação de portas:
+- **Windows**: [Criar uma regra de porta de entrada](https://learn.microsoft.com/pt-br/windows/security/operating-system-security/network-security/windows-firewall/create-an-inbound-port-rule)

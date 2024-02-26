@@ -17,15 +17,11 @@ Antes de iniciar a instalação, certifique-se de atender aos seguintes requisit
 - [Download do CURL](https://curl.se/download.html)
 
 ### Para Linux:
-
-#### GIT
-- [Download do GIT para Linux](https://git-scm.com/download/linux)
-
-#### Docker
-- [Instalação Docker no Linux](https://docs.docker.com/engine/install/#server)
-
-#### CURL
-- [Download do CURL](https://curl.se/download.html)
+#### Superadmin:
+Para realizar a instalação automática, é necessário possuir a senha do usuário e garantir que os seguintes requisitos estejam presentes:
+1. Docker
+2. Wget
+3. CURL
 
 **Execução do script de instalação:**
 - **Windows**: Utilize o GIT BASH.

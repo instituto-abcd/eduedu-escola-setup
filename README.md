@@ -54,11 +54,16 @@ Para garantir o funcionamento adequado, é crucial possuir uma credencial SMTP v
 ### Para Usuários do Linux:
 
 1. **Abrindo o Terminal:**
+   - Dê permissões de execução:
+     ```bash
+     chmod +x startup-linux.sh
+     ```
+     
    - Execute o seguinte comando:
      ```bash
-     sudo ./startup-linux.sh
+     sudo bash startup-linux.sh
      ```
-
+   
 ---
 
 **Conclusão da Instalação**

@@ -28,8 +28,6 @@ fi
 
 # Função do spinner
 spinner() {
-    message=$2
-
     local PROC="$1"
     local str="${2:-$message}"
     local delay="0.1"
@@ -48,7 +46,6 @@ spinner() {
 echo_fail() {
     printf "✘ Falha: $*\n"  # Use * para expandir todos os argumentos como uma única string
 }
-
 
 # Função para verificar se o usuário está no grupo docker
 check_docker_group() {
@@ -118,8 +115,6 @@ ensure_docker() {
     docker-compose version
   fi
 }
-
-
 
 # Função para construir as imagens frontend
 build_frontend() {
@@ -253,12 +248,13 @@ main() {
 }
 
 # Mede o tempo de execução
-start=`date +%s`
+start=$(date +%s)
 main "$@"
-end=`date +%s`
-execution_time=$(($end-$start))
+end=$(date +%s)
+execution_time=$((end-start))
 
 echo "EduEdu Escola - Versão ${APP_VERSION} - Tempo de inicialização: ${execution_time}s"
 echo ""
 echo "→   Portal Admin:   ${LOCAL_IP}:${ADMIN_PORT}"
 echo "→   Portal Aluno:   ${LOCAL_IP}:${ALUNO_PORT}"
+

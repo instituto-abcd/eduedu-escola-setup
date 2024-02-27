@@ -16,8 +16,6 @@ Antes de iniciar a instalação, certifique-se de ter os seguintes itens prontos
 #### CURL
 - Baixe o CURL [aqui](https://curl.se/download.html).
 
-
-
 ### Para Usuários do Linux:
 
 #### Superusuário:
@@ -52,8 +50,6 @@ Para garantir o funcionamento adequado, é crucial possuir uma credencial SMTP v
 4. **Durante a Instalação:**
    - Durante a instalação, será solicitado seu endereço IP.
    - Informe o endereço IPv4 obtido na etapa 1.
-
-
 
 ### Para Usuários do Linux:
 

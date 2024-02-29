@@ -1,3 +1,5 @@
 mongodb-data
 postgres-data
 assets-data
+.env
+.idea

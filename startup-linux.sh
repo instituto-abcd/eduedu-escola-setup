@@ -217,21 +217,31 @@ stop_current_containers() {
     echo ""
 }
 
-# Recupera o IP local automaticamente
-LOCAL_IP=$(hostname -I | awk '{print $1}')
-export LOCAL_IP
 
-# Função que exibe mensagens de pré-requisitos
 prerequisites() {
     echo "------------ Pré-requisitos para Instalação -------------"
+    # Recupera o IP local automaticamente
+    LOCAL_IP=$(hostname -I | awk '{print $1}')
+    
+    # Verifica se a variável APP_ADDRESS já existe no arquivo .env
+    if grep -q "APP_ADDRESS=" .env; then
+        # Atualiza a variável APP_ADDRESS no arquivo .env
+        sed -i "s/APP_ADDRESS=.*/APP_ADDRESS=${LOCAL_IP}/" .env
+    else
+        # Adiciona a variável APP_ADDRESS ao arquivo .env
+        echo "APP_ADDRESS=${LOCAL_IP}" >> .env
+    fi
+
+    export APP_ADDRESS="${LOCAL_IP}"
 
     ensure_docker
 
-    echo "IP local detectado: ${LOCAL_IP}"
+    echo "IP local detectado: ${APP_ADDRESS}"
 
     echo "---------------------------------------------------------"
     echo ""
 }
+
 
 # Função para perguntar ao usuário se é uma instalação, atualização ou saída
 ask_installation_or_update() {
@@ -282,9 +292,10 @@ ask_installation_or_update() {
 # Função principal
 main() {
     start=$(date +%s)
-    source "$SCRIPT_DIR/.env"
 
     prerequisites
+    
+    source "$SCRIPT_DIR/.env"
 
     ask_installation_or_update
 
@@ -314,4 +325,3 @@ main() {
 
 # Chamada para a função principal
 main "$@"
-

@@ -18,7 +18,7 @@ services:
       - app-network
 
   mongo:
-    image: mongo:4.4
+    image: mongo
     restart: always
     volumes:
     - ${MONGODB_DATA}:/data/db

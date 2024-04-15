@@ -1,5 +1,5 @@
-.vscode
-.idea
+mongodb-data
+postgres-data
+assets-data
 .env
-.env.*
-!.env.example
+.idea

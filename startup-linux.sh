@@ -121,7 +121,7 @@ build_frontend() {
     docker-compose -f docker-compose.linux.yml build \
         --build-arg ARG_VITE_API_URL="$VITE_API_URL" \
         --build-arg ARG_VITE_ASSETS=LOCAL \
-        --build-arg ARG_VITE_APP_VERSION="$APP_VERSION" admin aluno --quiet &
+        --build-arg ARG_VITE_APP_VERSION="$APP_VERSION" admin aluno &
 
     spinner $! 'Imagens Frontend' 'Imagens Frontend (Admin e Aluno)'
 

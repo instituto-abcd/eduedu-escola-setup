@@ -117,10 +117,11 @@ build_frontend() {
     echo "------------ Construção das Imagens Frontend ------------"
 
     VITE_API_URL="${APP_URL}:${API_PORT}/"
+    VITE_ADMIN_URL="${APP_URL}:${ADMIN_PORT}/login"
 
     docker-compose -f docker-compose.linux.yml build \
-        --build-arg ARG_VITE_API_URL="$VITE_API_URL" \
-        --build-arg ARG_VITE_ASSETS=LOCAL \
+        --build-arg API_URL="$VITE_API_URL" \
+        --build-arg ADMIN_URL="$VITE_ADMIN_URL" \
         --build-arg ARG_VITE_APP_VERSION="$APP_VERSION" admin aluno &
 
     spinner $! 'Imagens Frontend' 'Imagens Frontend (Admin e Aluno)'

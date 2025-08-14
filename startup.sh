@@ -130,8 +130,14 @@ build_frontend() {
     echo -e "${BBlue}------------ Construção das Imagens Frontend ------------"
 
     VITE_API_URL="${APP_URL}:${API_PORT}/"
+    VITE_ADMIN_URL="${APP_URL}:${ADMIN_PORT}/login"
 
-    docker-compose build --build-arg ARG_VITE_API_URL=$VITE_API_URL --build-arg ARG_VITE_ASSETS=LOCAL --build-arg ARG_VITE_APP_VERSION=$APP_VERSION admin aluno --quiet &
+    docker-compose build \
+    --build-arg ARG_VITE_API_URL=$VITE_API_URL \
+    --build-arg ARG_VITE_ASSETS=LOCAL \
+    --build-arg API_URL="$VITE_API_URL" \
+    --build-arg ADMIN_URL="$VITE_ADMIN_URL" \
+    --build-arg ARG_VITE_APP_VERSION=$APP_VERSION admin aluno --quiet &
     spinner $! 'Imagens Frontend (Admin e Aluno)' $BYellow
 
     echo -e "${BBlue}---------------------------------------------------------"
@@ -235,6 +241,8 @@ readIPMachineFromUser() {
 
 prerequisites() {
     echo -e "${BBlue}------------ Pré-requisitos para Instalação -------------"
+    echo 'Desativando o Docker BuildKit'
+    export DOCKER_BUILDKIT=0
 
     echo 'Verificação da instalação do CURL'
     ensure_curl || {

@@ -274,6 +274,13 @@ main() {
     # setIPMachine
     source .env
 
+    # Troca o valor da variável MONGO_URI
+    sed -i "s|^MONGO_URI=.*|MONGO_URI=mongodb://${MONGO_USER}:${MONGO_PASSWORD}@mongo:${MONGO_PORT}/?authSource=admin|" .env
+
+    # Troca o valor da variável DATABASE_URL
+    sed -i "s|^DATABASE_URL=.*|DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:${POSTGRES_PORT}/${POSTGRES_DB}?schema=public|" .env
+
+
     if curl -s http://127.0.0.1:$API_PORT/swagger > /dev/null
     then
         echo -e "${BWhite}Recompilando Instalação do EduEdu Escola - Versão ${APP_VERSION}"

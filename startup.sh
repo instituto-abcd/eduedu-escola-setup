@@ -209,18 +209,32 @@ setIPMachine() {
         *)        OS_NAME="unknown: $OSTYPE" ;;
     esac
 
-    if [ $OS_NAME = "WINDOWS" ]; then
-        APP_URL=${LOCAL_IP:-`ipconfig.exe | grep -im1 -a 'IPv4' | cut -d ':' -f2`} # TODO: Rever esse comando (Está pegando o IP Público da máquina)
+    if [ "$OS_NAME" = "WINDOWS" ]; then
+        # Primeiro tenta pegar IP 192.168.x.x
+        APP_URL=$(ipconfig.exe | grep -Eo "192\.168\.[0-9]{1,3}\.[0-9]{1,3}" | head -n1)
+
+        # Se não achar, tenta 10.x.x.x
+        if [ -z "$APP_URL" ]; then
+            APP_URL=$(ipconfig.exe | grep -Eo "10\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}" | head -n1)
+        fi
+
+        # Se ainda não achar, tenta 172.16–31.x.x
+        if [ -z "$APP_URL" ]; then
+            APP_URL=$(ipconfig.exe | grep -Eo "172\.(1[6-9]|2[0-9]|3[0-1])\.[0-9]{1,3}\.[0-9]{1,3}" | head -n1)
+        fi
     else
-        APP_URL=${LOCAL_IP:-`ifconfig | sed -En 's/127.0.0.1//;s/.*inet (addr:)?(([0-9]*\.){3}[0-9]*).*/\2/p'`}
+        APP_URL=$(ifconfig | sed -En 's/127.0.0.1//;s/.*inet (addr:)?(([0-9]*\.){3}[0-9]*).*/\2/p' | head -n 1)
     fi
 
-    MACHINE_IP=`echo $APP_URL | sed 's/ *$//g'`
+    MACHINE_IP=$(echo "$APP_URL" | sed 's/ *$//g')
 
-    if ! grep -q 'APP_URL=' ".env"; then
-        echo "APP_URL=http://${MACHINE_IP}" >> .env
+    echo "IP detectado automaticamente: ${MACHINE_IP}"
+
+    if grep -q '^APP_ADDRESS=' ".env"; then
+        sed -i "s|^APP_ADDRESS=.*|APP_ADDRESS=${MACHINE_IP}|" .env
+    else
+        echo "APP_ADDRESS=${MACHINE_IP}" >> .env
     fi
-
 }
 
 readIPMachineFromUser() {
@@ -270,8 +284,8 @@ main() {
     
     prerequisites
 
-    readIPMachineFromUser
-    # setIPMachine
+    # readIPMachineFromUser
+    setIPMachine
     source .env
 
     # Troca o valor da variável MONGO_URI
@@ -304,7 +318,7 @@ main() {
 start=`date +%s`
 main "$@"
 end=`date +%s`
-execution_time=$(($end-$start))
+execution_time=$(($end - $start))
 
 echo -e "${BIGreen}EduEdu Escola - Versão ${APP_VERSION} - ${BWhite}Tempo de inicialização: ${BYellow}${execution_time}s"
 echo -e ""

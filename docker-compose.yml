@@ -1,5 +1,3 @@
-version: "3.8"
-
 services:
   postgres:
     container_name: postgres
@@ -50,6 +48,7 @@ services:
       - app-network
 
   backend:
+    container_name: backend
     image: us-east1-docker.pkg.dev/edueduescola-teste/eduedu-escola-setup/eduedu-escola-backend:${APP_VERSION}
     restart: always
     depends_on:
@@ -68,8 +67,8 @@ services:
       - app-network
 
   admin:
-    image: admin:${APP_VERSION}
-    build: https://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@github.com/instituto-abcd/eduedu-escola-admin.git#${APP_VERSION} # TODO: Remover Token quando os repositórios se tornarem Públicos
+    container_name: admin
+    image: us-east1-docker.pkg.dev/edueduescola-teste/eduedu-escola-setup/eduedu-escola-admin:${APP_VERSION}
     restart: always
     depends_on:
       - backend
@@ -81,8 +80,8 @@ services:
       - app-network
 
   aluno:
-    image: aluno:${APP_VERSION}
-    build: https://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@github.com/instituto-abcd/eduedu-escola-aluno.git#${APP_VERSION} # TODO: Remover Token quando os repositórios se tornarem Públicos
+    container_name: aluno
+    image: us-east1-docker.pkg.dev/edueduescola-teste/eduedu-escola-setup/eduedu-escola-aluno:${APP_VERSION}
     restart: always
     depends_on:
       - backend

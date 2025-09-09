@@ -255,8 +255,6 @@ readIPMachineFromUser() {
 
 prerequisites() {
     echo -e "${BBlue}------------ Pré-requisitos para Instalação -------------"
-    echo 'Desativando o Docker BuildKit'
-    export DOCKER_BUILDKIT=0
 
     echo 'Verificação da instalação do CURL'
     ensure_curl || {

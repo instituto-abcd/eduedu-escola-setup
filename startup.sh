@@ -193,10 +193,38 @@ init() {
 }
 
 stopCurrentContainers() {
-    echo -e "${BBlue}---------------- Parando containers da instalação atual ----------------"
-    docker-compose down
-    echo -e "${BBlue}---------------------------------------------------------"
-    echo -e ""
+    local action=$1
+
+    case $action in
+        "install")
+            echo "---------------- Parando containers e removendo imagens ----------------"
+            cd "$SCRIPT_DIR" || exit
+            
+            # Exclua os diretórios originais apenas se existirem
+            [ -d assets-data ] && rm -rf assets-data
+            [ -d postgres-data ] && rm -rf postgres-data
+            [ -d mongodb-data ] && rm -rf mongodb-data
+
+            docker-compose -f docker-compose.yml down --rmi all -v
+            ;;
+        "update")
+            echo "---------------- Parando e removendo containers e imagens de admin, aluno e backend ----------------"
+            cd "$SCRIPT_DIR" || exit
+
+            docker-compose -f docker-compose.yml down --volumes --remove-orphans
+
+            echo "Removendo imagens específicas..."
+            docker rmi -f $(docker images -q admin) 2>/dev/null
+            docker rmi -f $(docker images -q aluno) 2>/dev/null
+            docker rmi -f $(docker images -q backend) 2>/dev/null
+            ;;
+        *)
+            echo_fail "Ação inválida. Saindo..."
+            ;;
+    esac
+
+    echo "---------------------------------------------------------"
+    echo ""
 }
 
 setIPMachine() {
@@ -278,9 +306,58 @@ prerequisites() {
     echo ""
 }
 
+ask_installation_or_update(){
+    echo "Verificando se existem containers ou imagens no Docker..."
+    
+    local existing_containers=$(docker ps -q)
+    local existing_images=$(docker images -q)
+
+    if [ -n "$existing_containers" ] || [ -n "$existing_images" ]; then
+        echo "Foram encontrados containers ou imagens no Docker."
+
+        echo "Selecione uma opção:"
+        echo "1. Instalação"
+        echo "2. Atualização"
+        echo "3. Sair"
+        read -r option
+
+        case $option in
+            1)
+                echo "Você está prestes a iniciar uma instalação do zero. Todos os containers e imagens existentes serão removidos."
+                echo "Tem certeza de que deseja prosseguir? (s/n)"
+                read -r confirm
+                if [ "$confirm" == "s" ] || [ "$confirm" == "S" ]; then
+                    echo "Iniciando instalação..."
+                    stopCurrentContainers install
+                else
+                    echo "Operação de instalação cancelada."
+                    exit 0
+                fi
+                ;;
+            2)
+                echo "Iniciando atualização..."
+                stopCurrentContainers update
+                ;;
+            3)
+                echo "Saindo..."
+                exit 0
+                ;;
+            *)
+                echo -e "${BRed}Opção inválida. Saindo..."
+                exit 1
+                ;;
+        esac
+    else
+        echo -e "${BGreen}Nenhum container ou imagem existente encontrado. Prosseguindo com a nova instalação."
+    fi
+}
+
 main() {
     
     prerequisites
+
+    source "$SCRIPT_DIR/.env"
+    ask_installation_or_update
 
     # readIPMachineFromUser
     setIPMachine
@@ -299,8 +376,6 @@ main() {
     else
         echo -e "${BWhite}Iniciando Instalação do EduEdu Escola - Versão ${APP_VERSION}"
     fi
-
-    stopCurrentContainers
 
     echo ""
 

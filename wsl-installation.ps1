@@ -1,46 +1,49 @@
-# install-wsl.ps1
-Write-Host "=== Verificando WSL ===" -ForegroundColor Cyan
-
-$needsReboot = $false
-
-# Verifica se o comando wsl existe
+# 1. Verifica se o comando existe
 $wslCommand = Get-Command wsl.exe -ErrorAction SilentlyContinue
-
 if (-not $wslCommand) {
-    Write-Host "WSL não está instalado. Iniciando instalação..." -ForegroundColor Yellow
-    try {
-        Start-Process "wsl.exe" -ArgumentList "--install -d Ubuntu" -Verb RunAs -Wait
-        Write-Host "WSL e Ubuntu instalados com sucesso." -ForegroundColor Green
-        $needsReboot = $true
+    Write-Host "WSL nao esta disponivel neste sistema." -ForegroundColor Red
+    exit 1
+}
+
+# 2. Verifica se as features do Windows estão habilitadas
+$wslFeature = (Get-WindowsOptionalFeature -Online -FeatureName Microsoft-Windows-Subsystem-Linux).State
+$vmFeature  = (Get-WindowsOptionalFeature -Online -FeatureName VirtualMachinePlatform).State
+$isEnabled  = ($wslFeature -eq "Enabled" -and $vmFeature -eq "Enabled")
+
+if (-not $isEnabled) {
+
+    Write-Host "Voce nao possui WSL habilitado deseja habilitar o WSL agora? (S/N)" -ForegroundColor Yellow
+    $response = Read-Host
+    if ($response -notmatch '^(S|s|Sim|sim)$') {
+        Write-Host "Por favor, instale o WSL manualmente mais tarde. A instalacao sera interrompida" -ForegroundColor Yellow
+        exit 0
     }
-    catch {
-        Write-Host "Erro ao instalar WSL. Verifique se o sistema suporta WSL2 (Windows 10 2004+ ou Windows 11)." -ForegroundColor Red
-    }
+    Write-Host "Instalando recursos necessários..." -ForegroundColor Yellow
+
+    Enable-WindowsOptionalFeature -Online -FeatureName VirtualMachinePlatform -NoRestart -All | Out-Null
+    Enable-WindowsOptionalFeature -Online -FeatureName Microsoft-Windows-Subsystem-Linux -NoRestart -All | Out-Null
+    Start-Process "wsl.exe" -ArgumentList "--update" -Wait
+    Start-Process "wsl.exe" -ArgumentList "--install --no-distribution" -Wait
+    $needsReboot = $true
+    [void]($isEnabled = $true)
 }
 else {
-    try {
-        # Verifica se há distribuições ou se o comando retorna uma mensagem de ajuda
-        $hasHelpMessageInsteadOfDist = (wsl -l -v | ForEach-Object { $_ -split "\s" }) -contains '--install'
-
-        if ($hasHelpMessageInsteadOfDist) {
-            Write-Host "Nenhuma distribuição WSL instalada. Instalando Ubuntu..." -ForegroundColor Yellow
-            Start-Process "wsl.exe" -ArgumentList "--install -d Ubuntu" -Verb RunAs -Wait
-            Write-Host "Ubuntu instalado com sucesso." -ForegroundColor Green
-        }
-        else {
-            Write-Host "Ubuntu ja instalado no WSL." -ForegroundColor Green
-        }
-    }
-    catch {
-        Write-Host "Erro ao verificar distribuições WSL." -ForegroundColor Red
-    }
+    Write-Host "WSL OK" -ForegroundColor Green
 }
+
 
 # Avisa da reinicialização
 if ($needsReboot) {
-    Write-Host "É necessário reiniciar o computador para concluir a instalação do WSL." -ForegroundColor Yellow
-} 
+    Write-Host "E necessario reiniciar o computador para concluir a configuracao do WSL." -ForegroundColor Yellow
+    Write-Host "Deseja reiniciar agora? (S/N)" -ForegroundColor Yellow
+    $response = Read-Host
+    if ($response -match '^(S|s|Sim|sim)$') {
+        Write-Host "Reiniciando o computador..." -ForegroundColor Green
+        Restart-Computer -Force
+    } else {
+        Write-Host "Por favor, reinicie o computador manualmente mais tarde para concluir a configuracao do WSL." -ForegroundColor Yellow
+        exit 0
+    }
+}   
 
-# Mantém a janela aberta no final
-Write-Host "`nPressione qualquer tecla para sair..."
-[void][System.Console]::ReadKey($true)
+

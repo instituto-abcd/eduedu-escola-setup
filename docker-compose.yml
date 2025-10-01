@@ -5,7 +5,7 @@ services:
     restart: always
     hostname: localhost
     volumes:
-      - ${POSTGRES_DATA}:/var/lib/postgresql/data
+      - pgdata:/var/lib/postgresql/data
     ports:
       - ${POSTGRES_PORT}:5432
     extra_hosts:
@@ -16,7 +16,7 @@ services:
       - app-network
 
   mongo:
-    image: mongo
+    image: mongo:latest
     restart: always
     volumes:
       - ${MONGODB_DATA}:/data/db
@@ -106,3 +106,6 @@ services:
 networks:
   app-network:
     driver: bridge
+
+volumes:
+  pgdata:

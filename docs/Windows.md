@@ -11,6 +11,10 @@
 - Windows 10 64-bit: Mínimo necessário é Home ou Pro 22H2 (build 19045) ou maior, ou Enterprise ou Education 22H2 (build 19045) ou maior.
 - Privilégio de administrador.
 
+[Como verificar sua versão do windows e build](https://learn.microsoft.com/pt-br/windows/client-management/client-tools/windows-version-search)
+
+[Como habilitar a virtualização de hardware](https://learn.microsoft.com/pt-br/answers/questions/4039785/como-fa-o-para-ativar-virtualiza-o-de-hardware)
+
 ### Como instalar:
 
 1. Mova os arquivos do projeto para o seu computador.

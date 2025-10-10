@@ -64,11 +64,11 @@ function Ask-YesNo($Question) {
 function Ensure-Docker {
     if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
         if(-not (Ask-YesNo "Docker nao encontrado. Deseja instalar agora?")) {
-            Write-Color "Instalacao automatica interrompida. Realize a instalacao manualmente." Red
+            Write-Color "Instalacao automatica interrompida. Docker e um pre-requisito obrigatorio, inicie o processo novamente se quiser instalar o EduEdu+" Red
             exit 1
         }
 
-        Write-Color "Iniciando instalação..." Red
+        Write-Color "Iniciando instalacao..." Red
 
         # Monta o caminho absoluto para o script de instalação
         $installScript = Join-Path $PSScriptRoot "docker-installation.ps1"
@@ -105,7 +105,7 @@ function Ensure-Winget {
     # Testa se o winget existe
     if (-not (Get-Command winget -ErrorAction SilentlyContinue)) {
         if(-not (Ask-YesNo "WinGet nao encontrado. Deseja tentar instalar agora?")) {
-            Write-Color "Instalacao automatica interrompida. Realize a instalacao manualmente." Red
+            Write-Color "Instalacao automatica interrompida. Winget e um pre-requisito obrigatorio, inicie o processo novamente se quiser instalar o EduEdu+" Red
             exit 1
         }
         

@@ -15,7 +15,7 @@ if (-not $isEnabled) {
     Write-Host "Voce nao possui WSL habilitado deseja habilitar o WSL agora? (S/N)" -ForegroundColor Yellow
     $response = Read-Host
     if ($response -notmatch '^(S|s|Sim|sim)$') {
-        Write-Host "Por favor, instale o WSL manualmente mais tarde. A instalacao sera interrompida" -ForegroundColor Yellow
+        Write-Host "A instalacao sera interrompida. WSL e um pre-requisito obrigatorio, inicie o processo novamente se quiser instalar o EduEdu+" -ForegroundColor Yellow
         exit 0
     }
     Write-Host "Instalando recursos necessários..." -ForegroundColor Yellow

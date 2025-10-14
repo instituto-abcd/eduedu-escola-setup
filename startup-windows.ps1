@@ -238,15 +238,18 @@ function Compose-Containers {
     Push-Location $PSScriptRoot
     
     Write-Color "------- Subindo Containers -------" Cyan
-    docker-compose volume create pgdata
-    docker-compose up -d postgres --quiet-pull
+
+    docker volume create pgdata
+
+    docker compose up -d postgres --quiet-pull
     docker cp ./postgres-data/. postgres:/var/lib/postgresql/data/
     docker exec -it postgres bash -c "chown -R postgres:postgres /var/lib/postgresql/data"
     docker restart postgres
 
-    docker-compose up -d mongo --quiet-pull
+    docker compose up -d mongo --quiet-pull
     Start-Sleep -Seconds 15
-    docker-compose up -d --quiet-pull
+    docker compose up -d --quiet-pull
+
     Write-Color "----------------------------------" Cyan
 }
 

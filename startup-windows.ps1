@@ -1,7 +1,7 @@
 # EduEdu Setup Script em PowerShell
-# ----------------- Configuração Inicial -----------------
+# ----------------- Configuracao Inicial -----------------
 
-# Carrega variáveis do .env
+# Carrega variaveis do .env
 Push-Location $PSScriptRoot
 $envPath = Join-Path $PSScriptRoot ".env"
 Get-Content $envPath | ForEach-Object {
@@ -18,7 +18,7 @@ $hasDocker=$false
 $hasWinget=$false
 $hasWsl=$false
 
-# ----------------- Utilitários -----------------
+# ----------------- Utilitarios -----------------
 
 function Write-Color($Text, $Color="White") {
     Write-Host $Text -ForegroundColor $Color  
@@ -60,7 +60,7 @@ function Ask-YesNo($Question) {
     }
 }
 
-# ----------------- Validações -----------------
+# ----------------- Validacoes -----------------
 function Ensure-Docker {
     if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
         if(-not (Ask-YesNo "Docker nao encontrado. Deseja instalar agora?")) {
@@ -79,7 +79,7 @@ function Ensure-Docker {
             Write-Color "Por favor, reinicie o processo de instalacao do projeto apos a instalacao do Docker." Yellow
             exit 0
         } else {
-            Write-Color "Script de instalação nao encontrado: $installScript" Red
+            Write-Color "Script de instalacao nao encontrado: $installScript" Red
             exit 1
         }
     } else {
@@ -95,8 +95,8 @@ function Ensure-WSL {
         & $installScript
         [void]($hasWsl = $true)
     } else {
-        Write-Color "Script de instalação do WSL nao encontrado: $installScript" Red
-        Write-Color "Instalação automatica interrompida. Realize a instalação manualmente." Red
+        Write-Color "Script de instalacao do WSL nao encontrado: $installScript" Red
+        Write-Color "Instalacao automatica interrompida. Realize a instalacao manualmente." Red
         exit 1
     }
 }
@@ -138,7 +138,7 @@ function Ensure-Winget {
             }
             catch {
                 Write-Color "Erro ao tentar registrar winget pela segunda vez. Instalacao interrompida. `n" Red
-                Write-Color "Verifique se o sistema suporta WinGet (Necessário Windows 10 1809 (17763) ou superior)." Red
+                Write-Color "Verifique se o sistema suporta WinGet (Necessario Windows 10 1809 (17763) ou superior)." Red
                 
                 Write-Host ""
                 Write-Host "Pressione Enter para fechar..."
@@ -152,8 +152,8 @@ function Ensure-Winget {
 
     # Verificação final única
     if (-not (Get-Command winget -ErrorAction SilentlyContinue)) {
-        Write-Color "WinGet ainda não disponível. Necessário Windows 10 1809 (17763) ou superior." Red
-        Write-Color "Instalação interrompida." Red
+        Write-Color "WinGet ainda nao disponivel. Necessario Windows 10 1809 (17763) ou superior." Red
+        Write-Color "Instalacao interrompida." Red
         exit 1
     } else {
         [void]($hasWinget = $true)

@@ -18,7 +18,7 @@ if (-not $isEnabled) {
         Write-Host "A instalacao sera interrompida. WSL e um pre-requisito obrigatorio, inicie o processo novamente se quiser instalar o EduEdu+" -ForegroundColor Yellow
         exit 0
     }
-    Write-Host "Instalando recursos necessários..." -ForegroundColor Yellow
+    Write-Host "Instalando recursos necessarios..." -ForegroundColor Yellow
 
     Enable-WindowsOptionalFeature -Online -FeatureName VirtualMachinePlatform -NoRestart -All | Out-Null
     Enable-WindowsOptionalFeature -Online -FeatureName Microsoft-Windows-Subsystem-Linux -NoRestart -All | Out-Null

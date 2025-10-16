@@ -19,11 +19,11 @@
 
 1. Mova os arquivos do projeto para o seu computador.
 
-2. Execute o arquivo de instalação `startup-windows.cmd`.
+2. Execute o arquivo de instalação `Instalador-Windows.cmd`.
 
 <img src="https://github.com/user-attachments/assets/91e7e817-aeb9-4f3e-aafe-7aab5cd73846" width="800" height="450" />
 
-3. Ao iniciar o script de instalação, será feita uma verificação de algumas ferramentas necessárias para instalação do projeto. Caso alguma das ferramentas necessárias não esteja presente, a instalação da(s) ferramenta(s) será iniciada e, ao finalizar, o arquivo `startup-windows.cmd` deverá ser iniciado novamente.
+3. Ao iniciar o script de instalação, será feita uma verificação de algumas ferramentas necessárias para instalação do projeto. Caso alguma das ferramentas necessárias não esteja presente, a instalação da(s) ferramenta(s) será iniciada e, ao finalizar, o arquivo `Instalador-Windows.cmd` deverá ser iniciado novamente.
 
    **IMPORTANTE:** Este passo deve ser repetido até que todas as ferramentas estejam instaladas e a janela se pareça com a imagem abaixo.
 
@@ -35,7 +35,7 @@
 
    <img src="https://github.com/user-attachments/assets/5460da8e-405e-42c0-848c-8f02ba83e7bf" width="800" height="450" />
 
-   Neste caso aperte a tecla “s” e em seguida “Enter” para confirmar a instalação e, ao finalizar, a janela será fechada automaticamente e o arquivo `startup-windows.cmd` deverá ser iniciado novamente.
+   Neste caso aperte a tecla “s” e em seguida “Enter” para confirmar a instalação e, ao finalizar, a janela será fechada automaticamente e o arquivo `Instalador-Windows.cmd` deverá ser iniciado novamente.
 
    b. **WSL não instalado:**
 
@@ -45,7 +45,7 @@
 
    <img src="https://github.com/user-attachments/assets/88be7673-da75-4f0a-aefd-b17a92ca114d" width="800" height="450" />
 
-   Para concluir a instalação da ferramenta WSL, reinicie o computador apertando “s” e em seguida “Enter”. Após a reinicialização, execute novamente o arquivo `startup-windows.cmd`.
+   Para concluir a instalação da ferramenta WSL, reinicie o computador apertando “s” e em seguida “Enter”. Após a reinicialização, execute novamente o arquivo `Instalador-Windows.cmd`.
 
    c. **Docker não instalado:**
 
@@ -67,9 +67,9 @@
 
    <img src="https://github.com/user-attachments/assets/506ef228-fede-4257-a939-d5ba4f6ce7b4" width="800" height="450" />
 
-   Isso sinaliza que a instalação foi concluída com sucesso e você deverá iniciar novamente o arquivo `startup-windows.cmd`.
+   Isso sinaliza que a instalação foi concluída com sucesso e você deverá iniciar novamente o arquivo `Instalador-Windows.cmd`.
 
-5. Ao concluir a instalação das ferramentas necessárias ou caso já estejam instaladas, inicie novamente o arquivo `startup-windows.cmd` e a instalação do projeto deverá ser iniciada.
+5. Ao concluir a instalação das ferramentas necessárias ou caso já estejam instaladas, inicie novamente o arquivo `Instalador-Windows.cmd` e a instalação do projeto deverá ser iniciada.
 
 6. Ao fim da instalação a seguinte tela será apresentada:
 

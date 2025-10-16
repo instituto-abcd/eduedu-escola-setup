@@ -1,9 +1,13 @@
 # EduEdu Setup Script em PowerShell
 # ----------------- Configuracao Inicial -----------------
 
-# Carrega variaveis do .env
-Push-Location $PSScriptRoot
-$envPath = Join-Path $PSScriptRoot ".env"
+# Caminho absoluto do projeto (pasta acima de /scripts)
+$projectRoot = Join-Path $PSScriptRoot ".."
+Push-Location $projectRoot
+
+# Caminho do .env
+$envPath = Join-Path $projectRoot ".env"
+
 Get-Content $envPath | ForEach-Object {
     if ($_ -match "^\s*([^#=]+)=(.*)$") {
         $name = $matches[1].Trim()
@@ -214,7 +218,7 @@ function Update-EnvFile($Path, $Key, $Value) {
 function Build-Frontend {
     # Diretório onde está o script
     $scriptDir = $PSScriptRoot
-    $composeFile = Join-Path $scriptDir "docker-compose.yml"
+    $composeFile = Join-Path $projectRoot "docker-compose.yml"
 
     if (-not (Test-Path $composeFile)) {
         Write-Host "[ ERRO ] docker-compose.yml nao encontrado em $scriptDir" -ForegroundColor Red
@@ -235,7 +239,7 @@ function Build-Frontend {
 }
 
 function Compose-Containers {
-    Push-Location $PSScriptRoot
+    Push-Location $projectRoot
     
     Write-Color "------- Subindo Containers -------" Cyan
 

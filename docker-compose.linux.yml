@@ -47,7 +47,7 @@ services:
 
   backend:
     container_name: backend
-    image: us-east1-docker.pkg.dev/edueduescola-teste/eduedu-escola-setup/eduedu-escola-backend:${APP_VERSION}
+    image: southamerica-east1-docker.pkg.dev/eduedu-plus-open-source-prd/eduedu-plus-setup/eduedu-plus-backend:${APP_VERSION}
     restart: always
     depends_on:
       - postgres
@@ -66,7 +66,7 @@ services:
 
   admin:
     container_name: admin
-    image: us-east1-docker.pkg.dev/edueduescola-teste/eduedu-escola-setup/eduedu-escola-admin:${APP_VERSION}
+    image: southamerica-east1-docker.pkg.dev/eduedu-plus-open-source-prd/eduedu-plus-setup/eduedu-plus-admin:${APP_VERSION}
     restart: always
     depends_on:
       - backend
@@ -79,7 +79,7 @@ services:
 
   aluno:
     container_name: aluno
-    image: us-east1-docker.pkg.dev/edueduescola-teste/eduedu-escola-setup/eduedu-escola-aluno:${APP_VERSION}
+    image: southamerica-east1-docker.pkg.dev/eduedu-plus-open-source-prd/eduedu-plus-setup/eduedu-plus-aluno:${APP_VERSION}
     restart: always
     depends_on:
       - backend

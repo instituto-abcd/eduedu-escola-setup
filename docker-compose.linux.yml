@@ -32,7 +32,7 @@ services:
       - app-network
 
   migration:
-    image: us-east1-docker.pkg.dev/edueduescola-teste/eduedu-escola-setup/eduedu-escola-backend:${APP_VERSION}
+    image: southamerica-east1-docker.pkg.dev/eduedu-plus-open-source-prd/eduedu-plus-setup/eduedu-plus-backend:${APP_VERSION}
     depends_on:
       - postgres
       - mongo

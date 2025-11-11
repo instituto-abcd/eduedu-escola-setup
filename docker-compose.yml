@@ -1,7 +1,7 @@
 services:
   postgres:
     container_name: postgres
-    image: postgres:15
+    image: postgres:17.6
     restart: always
     hostname: localhost
     volumes:

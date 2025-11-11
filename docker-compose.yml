@@ -1,7 +1,7 @@
 services:
   postgres:
     container_name: postgres
-    image: postgres:latest
+    image: postgres:15
     restart: always
     hostname: localhost
     volumes:
@@ -16,7 +16,7 @@ services:
       - app-network
 
   mongo:
-    image: mongo:latest
+    image: mongo:8.0
     restart: always
     volumes:
       - ${MONGODB_DATA}:/data/db

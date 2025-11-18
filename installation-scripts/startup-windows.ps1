@@ -355,8 +355,11 @@ function Main {
     $ip = Get-MachineIP
     Write-Color "IP detectado: $ip" Yellow
     Update-EnvFile ".env" "FILE_SERVER_URL" "http://${ip}:$($env:API_PORT)/assets-data"
+    Update-EnvFile ".env" "APP_ADDRESS" "${ip}"
+    Update-EnvFile ".env" "APP_URL" "http://${ip}"
 
-    Build-Frontend
+    # A imagem já vem buildada, não tem como alterar as envs
+    #Build-Frontend
     Compose-Containers
     Init-Services
 

@@ -9,7 +9,7 @@
 
 - Windows 10 ou 11 64-bit: Home ou Pro versão 22H2 ou maior, ou Enterprise ou Education versão 22H2 ou maior.
 - Privilégio de administrador.
-- Winrar: [Clique aqui](https://support.microsoft.com/pt-br/windows/como-marcar-se-um-aplicativo-ou-programa-est%C3%A1-instalado-no-windows-5af73cea-f875-dfa0-4cd1-72a02aa06436#:~:text=Select%20Start%20%3E%20Settings%20%3E%20Apps.,followed%20by%20an%20alphabetical%20list.) para apreneder como verificar se o winrar está instalado. Caso não esteja, [clique aqui](https://www.win-rar.com/fileadmin/winrar-versions/winrar/winrar-x64-713br.exe) para instalar.
+- Winrar: [Clique aqui](https://support.microsoft.com/pt-br/windows/como-marcar-se-um-aplicativo-ou-programa-est%C3%A1-instalado-no-windows-5af73cea-f875-dfa0-4cd1-72a02aa06436#:~:text=Select%20Start%20%3E%20Settings%20%3E%20Apps.,followed%20by%20an%20alphabetical%20list.) para aprender como verificar se o winrar está instalado. Caso não esteja, [clique aqui](https://www.win-rar.com/fileadmin/winrar-versions/winrar/winrar-x64-713br.exe) para instalar.
 
 [Como verificar sua versão do windows e informações de hardware](https://support.microsoft.com/pt-br/windows/localizar-informa%C3%A7%C3%B5es-sobre-o-seu-dispositivo-windows-a66d52c8-3323-44fd-8f34-a9497bb935e1)
 

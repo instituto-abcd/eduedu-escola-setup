@@ -21,7 +21,7 @@
    - Mova o zip para a área de trabalho
    - Extraia o conteúdo do zip para a área de trabalho
 
-2. Abra a pasta que foi extraida do zip.
+2. Abra a pasta que foi extraída do zip.
 
 3. Clique 2 vezes no arquivo de instalação `Instalador-Windows.cmd`.
    - Se aparecer uma janela pedindo permissão, clique em *SIM*

@@ -1,6 +1,6 @@
 ### Pré requisitos - hardware:
 
-- Processador: Intel Core I(i3,i5,i7,i9) de segunda geração ou superior, Intel Core Ultra, Intel Celeron, Intel XEON ou AMD Ryzen
+- Processador: Intel Core I(i3,i5,i7,i9) de quarta geração ou superior, Intel Core Ultra, Intel Celeron, Intel XEON ou AMD Ryzen
 - RAM: Mínimo de 4GB
 - Armazenamento: 8GB disponíveis
 - Habilite a virtualização de hardware na BIOS/UEFI.

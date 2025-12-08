@@ -301,8 +301,8 @@ function Stop-CurrentContainers($Action) {
             docker-compose down --rmi all -v
         }
         "update" {
-            Write-Color "Parando containers e limpando volumes" Yellow
-            docker-compose down --volumes --remove-orphans
+            Write-Color "Parando containers e removendo imagens" Yellow
+            docker-compose down --remove-orphans
             docker rmi -f (docker images -q us-east1-docker.pkg.dev/edueduescola-teste/eduedu-escola-setup/eduedu-escola-admin)
             docker rmi -f (docker images -q us-east1-docker.pkg.dev/edueduescola-teste/eduedu-escola-setup/eduedu-escola-aluno)
             docker rmi -f (docker images -q us-east1-docker.pkg.dev/edueduescola-teste/eduedu-escola-setup/eduedu-escola-backend)

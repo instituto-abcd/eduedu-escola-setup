@@ -215,28 +215,6 @@ function Update-EnvFile($Path, $Key, $Value) {
 }
 
 # ----------------- Containers -----------------
-function Build-Frontend {
-    # Diretório onde está o script
-    $scriptDir = $PSScriptRoot
-    $composeFile = Join-Path $projectRoot "docker-compose.yml"
-
-    if (-not (Test-Path $composeFile)) {
-        Write-Host "[ ERRO ] docker-compose.yml nao encontrado em $scriptDir" -ForegroundColor Red
-        exit 1
-    }
-
-    Write-Color "------------ Build Frontend ------------" Cyan
-    Spinner-Run {
-       docker-compose build admin aluno `
-        --build-arg ARG_VITE_API_URL="http://$($ip):$( $env:API_PORT )/" `
-        --build-arg ARG_VITE_ASSETS="LOCAL" `
-        --build-arg API_URL="http://$( $ip ):$( $env:API_PORT )/" `
-        --build-arg ADMIN_URL="http://$( $ip ):$( $env:ADMIN_PORT )/login" `
-        --build-arg ARG_VITE_APP_VERSION="$( $env:APP_VERSION )" `
-        --quiet
-    } "Imagens Frontend (Admin e Aluno)"
-    Write-Color "---------------------------------------" Cyan
-}
 
 function Compose-Containers {
     Push-Location $projectRoot
@@ -303,9 +281,8 @@ function Stop-CurrentContainers($Action) {
         "update" {
             Write-Color "Parando containers e removendo imagens" Yellow
             docker-compose down --remove-orphans
-            docker rmi -f (docker images -q us-east1-docker.pkg.dev/edueduescola-teste/eduedu-escola-setup/eduedu-escola-admin)
-            docker rmi -f (docker images -q us-east1-docker.pkg.dev/edueduescola-teste/eduedu-escola-setup/eduedu-escola-aluno)
-            docker rmi -f (docker images -q us-east1-docker.pkg.dev/edueduescola-teste/eduedu-escola-setup/eduedu-escola-backend)
+            docker rmi -f (docker images -q "eduedu-escola-admin")
+            docker rmi -f (docker images -q "eduedu-escola-aluno")
         }
         default {
             Write-Color "Acao invalida" Red
@@ -356,7 +333,9 @@ function Main {
     Write-Color "IP detectado: $ip" Yellow
     Update-EnvFile ".env" "FILE_SERVER_URL" "http://${ip}:$($env:API_PORT)/assets-data"
     Update-EnvFile ".env" "APP_ADDRESS" "${ip}"
-    Update-EnvFile ".env" "APP_URL" "http://${ip}"
+    Update-EnvFile ".env" "APP_URL"       "http://${ip}"
+    Update-EnvFile ".env" "API_URL"       "http://${ip}:$($env:API_PORT)"
+    Update-EnvFile ".env" "ADMIN_URL"     "http://${ip}:$($env:ADMIN_PORT)"
 
     
     Get-Content $envPath | ForEach-Object {

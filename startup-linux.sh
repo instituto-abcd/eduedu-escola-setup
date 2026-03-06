@@ -116,15 +116,9 @@ ensure_docker() {
 build_frontend() {
     echo "------------ Construção das Imagens Frontend ------------"
 
-    VITE_API_URL="${APP_URL}:${API_PORT}/"
-    VITE_ADMIN_URL="${APP_URL}:${ADMIN_PORT}/login"
+    docker-compose -f docker-compose.linux.yml build admin aluno &
 
-    docker-compose -f docker-compose.linux.yml build \
-        --build-arg API_URL="$VITE_API_URL" \
-        --build-arg ADMIN_URL="$VITE_ADMIN_URL" \
-        --build-arg ARG_VITE_APP_VERSION="$APP_VERSION" admin aluno &
-
-    spinner $! 'Imagens Frontend' 'Imagens Frontend (Admin e Aluno)'
+    spinner $! 'Construindo imagens frontend' 'Imagens Frontend (Admin e Aluno)'
 
     echo "---------------------------------------------------------"
     echo ""
@@ -205,9 +199,8 @@ stop_current_containers() {
             docker-compose -f docker-compose.linux.yml down --volumes --remove-orphans
 
             echo "Removendo imagens específicas..."
-            docker rmi -f $(docker images -q admin) 2>/dev/null
-            docker rmi -f $(docker images -q aluno) 2>/dev/null
-            docker rmi -f $(docker images -q backend) 2>/dev/null
+            docker rmi -f $(docker images -q eduedu-escola-admin) 2>/dev/null
+            docker rmi -f $(docker images -q eduedu-escola-aluno) 2>/dev/null
             ;;
         *)
             echo_fail "Ação inválida. Saindo..."
@@ -297,6 +290,12 @@ main() {
     prerequisites
     
     source "$SCRIPT_DIR/.env"
+
+    # Atualiza variáveis de URL no .env com o IP detectado
+    sed -i "s|APP_URL=.*|APP_URL=http://${LOCAL_IP}|" .env
+    sed -i "s|FILE_SERVER_URL=.*|FILE_SERVER_URL=http://${LOCAL_IP}:${API_PORT}/assets-data|" .env
+    grep -q "^API_URL=" .env && sed -i "s|API_URL=.*|API_URL=http://${LOCAL_IP}:${API_PORT}|" .env || echo "API_URL=http://${LOCAL_IP}:${API_PORT}" >> .env
+    grep -q "^ADMIN_URL=" .env && sed -i "s|ADMIN_URL=.*|ADMIN_URL=http://${LOCAL_IP}:${ADMIN_PORT}|" .env || echo "ADMIN_URL=http://${LOCAL_IP}:${ADMIN_PORT}" >> .env
 
     ask_installation_or_update
 

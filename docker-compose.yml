@@ -69,28 +69,33 @@ services:
   admin:
     container_name: admin
     image: eduedu-escola-admin:${APP_VERSION}
-    build: https://github.com/instituto-abcd/eduedu-escola-admin.git#${APP_VERSION}
+    build:
+      context: https://github.com/instituto-abcd/eduedu-escola-admin.git#${APP_VERSION}
+      args:
+        API_URL: ${API_URL}
+        APP_VERSION: ${APP_VERSION}
     restart: always
     depends_on:
       - backend
     ports:
       - ${ADMIN_PORT}:80
-    env_file:
-      - .env
     networks:
       - app-network
 
   aluno:
     container_name: aluno
     image: eduedu-escola-aluno:${APP_VERSION}
-    build: https://github.com/instituto-abcd/eduedu-escola-aluno.git#${APP_VERSION}
+    build:
+      context: https://github.com/instituto-abcd/eduedu-escola-aluno.git#${APP_VERSION}
+      args:
+        API_URL: ${API_URL}
+        ADMIN_URL: ${ADMIN_URL}
+        APP_VERSION: ${APP_VERSION}
     restart: always
     depends_on:
       - backend
     ports:
       - ${ALUNO_PORT}:80
-    env_file:
-      - .env
     networks:
       - app-network
 

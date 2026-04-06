@@ -35,8 +35,6 @@ services:
 
   migration:
     image: eduedu-escola-backend:${APP_VERSION}
-    build:
-      context: https://github.com/instituto-abcd/eduedu-escola-backend.git#${APP_VERSION}
     depends_on:
       - postgres
       - mongo
@@ -52,8 +50,6 @@ services:
   backend:
     container_name: backend
     image: eduedu-escola-backend:${APP_VERSION}
-    build:
-      context: https://github.com/instituto-abcd/eduedu-escola-backend.git#${APP_VERSION}
     restart: always
     depends_on:
       - postgres
@@ -73,11 +69,6 @@ services:
   admin:
     container_name: admin
     image: eduedu-escola-admin:${APP_VERSION}
-    build:
-      context: https://github.com/instituto-abcd/eduedu-escola-admin.git#${APP_VERSION}
-      args:
-        API_URL: ${API_URL}
-        APP_VERSION: ${APP_VERSION}
     restart: always
     depends_on:
       - backend
@@ -89,12 +80,6 @@ services:
   aluno:
     container_name: aluno
     image: eduedu-escola-aluno:${APP_VERSION}
-    build:
-      context: https://github.com/instituto-abcd/eduedu-escola-aluno.git#${APP_VERSION}
-      args:
-        API_URL: ${API_URL}
-        ADMIN_URL: ${ADMIN_URL}
-        APP_VERSION: ${APP_VERSION}
     restart: always
     depends_on:
       - backend

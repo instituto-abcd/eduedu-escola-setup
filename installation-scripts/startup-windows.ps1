@@ -214,6 +214,31 @@ function Update-EnvFile($Path, $Key, $Value) {
     $new | Set-Content $Path
 }
 
+# ----------------- Build de Imagens -----------------
+
+function Build-Images {
+    Write-Color "------- Buildando Imagens -------" Cyan
+
+    Write-Color "Buildando backend ($env:APP_VERSION)..." Yellow
+    docker build -t "eduedu-escola-backend:$env:APP_VERSION" `
+        "https://github.com/instituto-abcd/eduedu-escola-backend.git#$env:APP_VERSION"
+
+    Write-Color "Buildando admin ($env:APP_VERSION)..." Yellow
+    docker build -t "eduedu-escola-admin:$env:APP_VERSION" `
+        --build-arg "API_URL=$env:API_URL" `
+        --build-arg "APP_VERSION=$env:APP_VERSION" `
+        "https://github.com/instituto-abcd/eduedu-escola-admin.git#$env:APP_VERSION"
+
+    Write-Color "Buildando aluno ($env:APP_VERSION)..." Yellow
+    docker build -t "eduedu-escola-aluno:$env:APP_VERSION" `
+        --build-arg "API_URL=$env:API_URL" `
+        --build-arg "ADMIN_URL=$env:ADMIN_URL" `
+        --build-arg "APP_VERSION=$env:APP_VERSION" `
+        "https://github.com/instituto-abcd/eduedu-escola-aluno.git#$env:APP_VERSION"
+
+    Write-Color "---------------------------------" Cyan
+}
+
 # ----------------- Containers -----------------
 
 function Compose-Containers {
@@ -346,8 +371,7 @@ function Main {
         }
     }
 
-    # A imagem já vem buildada, não tem como alterar as envs
-    #Build-Frontend
+    Build-Images
     Compose-Containers
     Init-Services
 

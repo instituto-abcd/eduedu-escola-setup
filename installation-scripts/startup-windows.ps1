@@ -345,7 +345,7 @@ function Main {
     $start = Get-Date
 
     # Atualiza MONGO_URI
-    Update-EnvFile ".env" "MONGO_URI" "mongodb://${env:MONGO_USER}:${env:MONGO_PASSWORD}@mongo:${env:MONGO_PORT}/?authSource=admin"
+    Update-EnvFile ".env" "MONGO_URI" "mongodb://${env:MONGO_USER}:${env:MONGO_PASSWORD}@mongo:${env:MONGO_PORT}/eduedu?authSource=admin"
 
 
     # Atualiza DATABASE_URL

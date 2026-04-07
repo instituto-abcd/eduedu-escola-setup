@@ -214,29 +214,32 @@ function Update-EnvFile($Path, $Key, $Value) {
     $new | Set-Content $Path
 }
 
-# ----------------- Containers -----------------
-function Build-Frontend {
-    # Diretório onde está o script
-    $scriptDir = $PSScriptRoot
-    $composeFile = Join-Path $projectRoot "docker-compose.yml"
+# ----------------- Build de Imagens -----------------
 
-    if (-not (Test-Path $composeFile)) {
-        Write-Host "[ ERRO ] docker-compose.yml nao encontrado em $scriptDir" -ForegroundColor Red
-        exit 1
-    }
+function Build-Images {
+    Write-Color "------- Buildando Imagens -------" Cyan
 
-    Write-Color "------------ Build Frontend ------------" Cyan
-    Spinner-Run {
-       docker-compose build admin aluno `
-        --build-arg ARG_VITE_API_URL="http://$($ip):$( $env:API_PORT )/" `
-        --build-arg ARG_VITE_ASSETS="LOCAL" `
-        --build-arg API_URL="http://$( $ip ):$( $env:API_PORT )/" `
-        --build-arg ADMIN_URL="http://$( $ip ):$( $env:ADMIN_PORT )/login" `
-        --build-arg ARG_VITE_APP_VERSION="$( $env:APP_VERSION )" `
-        --quiet
-    } "Imagens Frontend (Admin e Aluno)"
-    Write-Color "---------------------------------------" Cyan
+    Write-Color "Buildando backend ($env:APP_VERSION)..." Yellow
+    docker build -t "eduedu-escola-backend:$env:APP_VERSION" `
+        "https://github.com/instituto-abcd/eduedu-escola-backend.git#$env:APP_VERSION"
+
+    Write-Color "Buildando admin ($env:APP_VERSION)..." Yellow
+    docker build -t "eduedu-escola-admin:$env:APP_VERSION" `
+        --build-arg "API_URL=$env:API_URL" `
+        --build-arg "APP_VERSION=$env:APP_VERSION" `
+        "https://github.com/instituto-abcd/eduedu-escola-admin.git#$env:APP_VERSION"
+
+    Write-Color "Buildando aluno ($env:APP_VERSION)..." Yellow
+    docker build -t "eduedu-escola-aluno:$env:APP_VERSION" `
+        --build-arg "API_URL=$env:API_URL" `
+        --build-arg "ADMIN_URL=$env:ADMIN_URL" `
+        --build-arg "APP_VERSION=$env:APP_VERSION" `
+        "https://github.com/instituto-abcd/eduedu-escola-aluno.git#$env:APP_VERSION"
+
+    Write-Color "---------------------------------" Cyan
 }
+
+# ----------------- Containers -----------------
 
 function Compose-Containers {
     Push-Location $projectRoot
@@ -303,9 +306,8 @@ function Stop-CurrentContainers($Action) {
         "update" {
             Write-Color "Parando containers e removendo imagens" Yellow
             docker-compose down --remove-orphans
-            docker rmi -f (docker images -q us-east1-docker.pkg.dev/edueduescola-teste/eduedu-escola-setup/eduedu-escola-admin)
-            docker rmi -f (docker images -q us-east1-docker.pkg.dev/edueduescola-teste/eduedu-escola-setup/eduedu-escola-aluno)
-            docker rmi -f (docker images -q us-east1-docker.pkg.dev/edueduescola-teste/eduedu-escola-setup/eduedu-escola-backend)
+            docker rmi -f (docker images -q "eduedu-escola-admin")
+            docker rmi -f (docker images -q "eduedu-escola-aluno")
         }
         default {
             Write-Color "Acao invalida" Red
@@ -343,7 +345,7 @@ function Main {
     $start = Get-Date
 
     # Atualiza MONGO_URI
-    Update-EnvFile ".env" "MONGO_URI" "mongodb://${env:MONGO_USER}:${env:MONGO_PASSWORD}@mongo:${env:MONGO_PORT}/?authSource=admin"
+    Update-EnvFile ".env" "MONGO_URI" "mongodb://${env:MONGO_USER}:${env:MONGO_PASSWORD}@mongo:${env:MONGO_PORT}/eduedu?authSource=admin"
 
 
     # Atualiza DATABASE_URL
@@ -356,7 +358,9 @@ function Main {
     Write-Color "IP detectado: $ip" Yellow
     Update-EnvFile ".env" "FILE_SERVER_URL" "http://${ip}:$($env:API_PORT)/assets-data"
     Update-EnvFile ".env" "APP_ADDRESS" "${ip}"
-    Update-EnvFile ".env" "APP_URL" "http://${ip}"
+    Update-EnvFile ".env" "APP_URL"       "http://${ip}"
+    Update-EnvFile ".env" "API_URL"       "http://${ip}:$($env:API_PORT)"
+    Update-EnvFile ".env" "ADMIN_URL"     "http://${ip}:$($env:ADMIN_PORT)"
 
     
     Get-Content $envPath | ForEach-Object {
@@ -367,8 +371,7 @@ function Main {
         }
     }
 
-    # A imagem já vem buildada, não tem como alterar as envs
-    #Build-Frontend
+    Build-Images
     Compose-Containers
     Init-Services
 

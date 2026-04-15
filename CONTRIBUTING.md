@@ -9,3 +9,6 @@ Embora aceitemos **ativamente** issues e pull requests, exigimos que você preen
     
 - **Solicitação de Funcionalidade (Nova funcionalidade):**
   - Antes de adicionar uma solicitação de funcionalidade, por favor, verifique se essa funcionalidade já foi solicitada anteriormente.
+
+### Pull Requests:
+- Todos os pull requests devem ser abertos para a branch `development`.

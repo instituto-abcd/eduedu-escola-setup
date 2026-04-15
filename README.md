@@ -46,16 +46,14 @@ O instalador detecta automaticamente o IP da máquina, instala dependências do 
 
 ## Tecnologias
 
-| Categoria           | Tecnologia                                                   |
-| ------------------- | ------------------------------------------------------------ |
-| Orquestração        | [Docker](https://www.docker.com/) + Docker Compose           |
-| Banco Relacional    | [PostgreSQL](https://www.postgresql.org/) 17.6               |
-| Banco de Documentos | [MongoDB](https://www.mongodb.com/) 8.0                      |
-| Cache               | [Redis](https://redis.io/)                                   |
-| Fila de Mensagens   | [CloudAMQP](https://www.cloudamqp.com/) (RabbitMQ hospedado) |
-| Scripts Windows     | PowerShell                                                   |
-| Scripts Linux       | Bash                                                         |
-| Registro de Imagens | Google Cloud Artifact Registry                               |
+| Categoria           | Tecnologia                                         |
+| ------------------- | -------------------------------------------------- |
+| Orquestração        | [Docker](https://www.docker.com/) + Docker Compose |
+| Banco Relacional    | [PostgreSQL](https://www.postgresql.org/) 17.6     |
+| Banco de Documentos | [MongoDB](https://www.mongodb.com/) 8.0            |
+| Cache               | [Redis](https://redis.io/)                         |
+| Scripts Windows     | PowerShell                                         |
+| Scripts Linux       | Bash                                               |
 
 ---
 
@@ -138,10 +136,8 @@ O instalador detecta automaticamente o IP da máquina, instala dependências do 
 | Banco Relacional    | [PostgreSQL](https://www.postgresql.org/) 17.6               |
 | Banco de Documentos | [MongoDB](https://www.mongodb.com/) 8.0                      |
 | Cache               | [Redis](https://redis.io/)                                   |
-| Fila de Mensagens   | [CloudAMQP](https://www.cloudamqp.com/) (RabbitMQ hospedado) |
 | Scripts Windows     | PowerShell                                                   |
 | Scripts Linux       | Bash                                                         |
-| Registro de Imagens | Google Cloud Artifact Registry                               |
 
 ---
 
@@ -172,7 +168,7 @@ O sistema é composto por 7 containers Docker orquestrados via Docker Compose:
 │ :8080 │ │ :9090 │
 └─────────┘ └──────────┘
 
-```
+````
 
 ### Serviços
 
@@ -190,17 +186,6 @@ O sistema é composto por 7 containers Docker orquestrados via Docker Compose:
 
 - **`docker-compose.yml`** &mdash; Windows (Docker Desktop). PostgreSQL 17.6, MongoDB 8.0, volume nomeado `pgdata`
 - **`docker-compose.linux.yml`** &mdash; Linux. PostgreSQL `latest`, MongoDB 4.4, volume mapeado
-
-As imagens são pré-compiladas e hospedadas no Google Cloud Artifact Registry:
-
-```
-
-southamerica-east1-docker.pkg.dev/eduedu-plus-open-source-prd/eduedu-plus-setup/
-├── eduedu-plus-backend:<versão>
-├── eduedu-plus-admin:<versão>
-└── eduedu-plus-aluno:<versão>
-
-````
 
 ---
 
@@ -277,15 +262,6 @@ sudo bash startup-linux.sh
 
 - **`docker-compose.yml`** &mdash; Windows (Docker Desktop). PostgreSQL 17.6, MongoDB 8.0, volume nomeado `pgdata`
 - **`docker-compose.linux.yml`** &mdash; Linux. PostgreSQL `latest`, MongoDB 4.4, volume mapeado
-
-As imagens são pré-compiladas e hospedadas no Google Cloud Artifact Registry:
-
-```
-southamerica-east1-docker.pkg.dev/eduedu-plus-open-source-prd/eduedu-plus-setup/
-├── eduedu-plus-backend:<versão>
-├── eduedu-plus-admin:<versão>
-└── eduedu-plus-aluno:<versão>
-```
 
 ---
 

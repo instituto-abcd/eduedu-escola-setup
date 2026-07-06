@@ -65,6 +65,61 @@ function Ask-YesNo($Question) {
 }
 
 # ----------------- Validacoes -----------------
+function Ensure-NotOneDrive {
+    # Resolve o caminho absoluto real do projeto
+    $resolved = (Resolve-Path $projectRoot).Path
+
+    # Coleta as raizes conhecidas do OneDrive a partir das variaveis de ambiente
+    $oneDriveRoots = @(
+        $env:OneDrive,
+        $env:OneDriveConsumer,
+        $env:OneDriveCommercial
+    ) | Where-Object { $_ -and (Test-Path $_) } | ForEach-Object { (Resolve-Path $_).Path }
+
+    $insideOneDrive = $false
+    $sep = [System.IO.Path]::DirectorySeparatorChar
+
+    foreach ($root in $oneDriveRoots) {
+        if ($resolved -eq $root -or $resolved.StartsWith("$root$sep", [System.StringComparison]::OrdinalIgnoreCase)) {
+            $insideOneDrive = $true
+            break
+        }
+    }
+
+    # Fallback: detecta pastas OneDrive pelo nome no caminho (ex.: "OneDrive", "OneDrive - Empresa")
+    if (-not $insideOneDrive -and $resolved -match '(^|\\)OneDrive( -[^\\]*)?(\\|$)') {
+        $insideOneDrive = $true
+    }
+
+    if ($insideOneDrive) {
+        Write-Host ""
+        Write-Color "==================== ATENCAO ====================" Red
+        Write-Color "O projeto esta sendo executado dentro de uma pasta do OneDrive:" Red
+        Write-Color "  $resolved" Yellow
+        Write-Host ""
+        Write-Color "Instalar o EduEdu+ dentro do OneDrive NAO e suportado e pode causar:" Red
+        Write-Color "  - Corrupcao dos dados de Postgres/Mongo (a sincronizacao trava arquivos)" White
+        Write-Color "  - Conflitos de sincronizacao e uso excessivo de banda/armazenamento" White
+        Write-Color "  - Falhas nos bind mounts do Docker" White
+        Write-Host ""
+        Write-Color "Mova a pasta do projeto para um caminho local fora do OneDrive" Yellow
+        Write-Color "(ex.: C:\eduedu) e execute a instalacao novamente." Yellow
+        Write-Host ""
+
+        if ($env:EDUEDU_ALLOW_ONEDRIVE -eq "1") {
+            Write-Color "EDUEDU_ALLOW_ONEDRIVE=1 definido. Prosseguindo por sua conta e risco..." DarkYellow
+            Write-Host ""
+            return
+        }
+
+        Write-Color "Instalacao interrompida." Red
+        Write-Host ""
+        Write-Host "Pressione Enter para fechar..."
+        Read-Host
+        exit 1
+    }
+}
+
 function Ensure-Docker {
     if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
         if(-not (Ask-YesNo "Docker nao encontrado. Deseja instalar agora?")) {
@@ -343,6 +398,9 @@ function Ask-InstallOrUpdate {
 # ----------------- Main -----------------
 function Main {
     $start = Get-Date
+
+    # Bloqueia execucao dentro de pastas do OneDrive (antes de qualquer alteracao)
+    Ensure-NotOneDrive
 
     # Atualiza MONGO_URI
     Update-EnvFile ".env" "MONGO_URI" "mongodb://${env:MONGO_USER}:${env:MONGO_PASSWORD}@mongo:${env:MONGO_PORT}/eduedu?authSource=admin"

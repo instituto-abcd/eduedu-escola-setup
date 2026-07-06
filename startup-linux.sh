@@ -39,6 +39,49 @@ spinner() {
     echo_success "$success_message"
 }
 
+# Função para bloquear a execução dentro de pastas do OneDrive
+ensure_not_onedrive() {
+    # Resolve o caminho absoluto real do projeto
+    local project_dir
+    project_dir="$(cd "$SCRIPT_DIR" &>/dev/null && pwd -P)"
+
+    local inside=false
+
+    # Detecta OneDrive pelas variáveis de ambiente (úteis no WSL/Windows)
+    local root
+    for root in "$OneDrive" "$OneDriveConsumer" "$OneDriveCommercial"; do
+        if [ -n "$root" ]; then
+            case "$project_dir" in
+                "$root"|"$root"/*) inside=true ;;
+            esac
+        fi
+    done
+
+    # Fallback: detecta OneDrive pelo nome no caminho (ex.: "OneDrive", "OneDrive - Empresa")
+    case "$project_dir" in
+        */OneDrive|*/OneDrive/*|*/OneDrive\ -\ *) inside=true ;;
+    esac
+
+    if [ "$inside" = true ]; then
+        printf "\n"
+        printf "==================== ATENÇÃO ====================\n"
+        printf "O projeto está sendo executado dentro de uma pasta do OneDrive:\n"
+        printf "  %s\n\n" "$project_dir"
+        printf "Instalar o EduEdu+ dentro do OneDrive NÃO é suportado e pode causar:\n"
+        printf "  - Corrupção dos dados de Postgres/Mongo (a sincronização trava arquivos)\n"
+        printf "  - Conflitos de sincronização e uso excessivo de banda/armazenamento\n"
+        printf "  - Falhas nos bind mounts do Docker\n\n"
+        printf "Mova a pasta do projeto para um caminho local fora do OneDrive e execute novamente.\n\n"
+
+        if [ "$EDUEDU_ALLOW_ONEDRIVE" = "1" ]; then
+            printf "EDUEDU_ALLOW_ONEDRIVE=1 definido. Prosseguindo por sua conta e risco...\n\n"
+            return 0
+        fi
+
+        echo_fail "Instalação interrompida (projeto dentro do OneDrive)."
+    fi
+}
+
 # Função para instalar o wget se não estiver instalado
 install_wget() {
     # Verifica se o comando wget está disponível
@@ -286,6 +329,9 @@ ask_installation_or_update() {
 # Função principal
 main() {
     start=$(date +%s)
+
+    # Bloqueia execução dentro de pastas do OneDrive (antes de qualquer alteração)
+    ensure_not_onedrive
 
     prerequisites
     

@@ -1,5 +1,6 @@
 mongodb-data
 postgres-data
 assets-data
+backup-data
 .env
 .idea

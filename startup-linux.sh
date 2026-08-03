@@ -167,11 +167,59 @@ build_frontend() {
     echo ""
 }
 
+# Imagem usada nas verificações de Postgres (default igual ao do compose)
+postgres_image() {
+    printf "%s" "${POSTGRES_IMAGE:-postgres:17.6}"
+}
+
+# Testa exatamente o caminho que o backend usa: TCP, via rede do Docker,
+# com usuário/senha/database do .env (valida senha, role e pg_hba.conf).
+test_postgres_access() {
+    local network
+    network=$(docker inspect postgres --format '{{range $k, $v := .NetworkSettings.Networks}}{{$k}} {{end}}' 2>/dev/null | awk '{print $1}')
+    [ -n "$network" ] || return 1
+
+    docker run --rm --network "$network" -e PGPASSWORD="${POSTGRES_PASSWORD}" \
+        --entrypoint psql "$(postgres_image)" \
+        -h postgres -p 5432 -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -c "SELECT 1" >/dev/null 2>&1
+}
+
+# Não deixa migration/backend subirem sem o banco aceitar a conexão:
+# sem isso o backend falha com "denied access on the database".
+wait_postgres() {
+    local attempt=1
+    local max_retries=30
+
+    while [ "$attempt" -le "$max_retries" ]; do
+        if test_postgres_access; then
+            echo_success "Postgres pronto (${POSTGRES_USER}@${POSTGRES_DB})"
+            return 0
+        fi
+
+        printf "[ Tentativa %s/%s ] Postgres ainda não aceitou a conexão...\n" "$attempt" "$max_retries"
+        sleep 3
+        attempt=$((attempt + 1))
+    done
+
+    printf "\nO Postgres subiu mas recusou a conexão de %s em %s.\n" "${POSTGRES_USER}" "${POSTGRES_DB}"
+    printf "Causa mais comum: diretório de dados de uma instalação anterior, com senha/database\n"
+    printf "diferentes do .env atual (POSTGRES_DB/POSTGRES_USER/POSTGRES_PASSWORD só valem\n"
+    printf "quando %s está vazio).\n\n" "${POSTGRES_DATA}"
+    printf "Últimas linhas do log do Postgres:\n"
+    docker logs postgres --tail 30
+
+    echo_fail "Banco de dados inacessível. Instalação interrompida."
+}
+
 # Função para iniciar ou reiniciar os containers da aplicação
 compose_containers() {
     echo "------- Inicialização dos Containers da Aplicação -------"
 
     cd "$SCRIPT_DIR" || exit
+
+    docker-compose -f docker-compose.linux.yml up -d postgres
+    wait_postgres
+
     docker-compose -f docker-compose.linux.yml up -d
 
     echo "---------------------------------------------------------"

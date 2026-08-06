@@ -975,7 +975,13 @@ function Restore-PostgresSnapshot {
 # Testa exatamente o caminho que o backend usa: TCP, via rede do Docker,
 # com usuario/senha/database do .env (valida senha, role e pg_hba.conf).
 function Test-PostgresAccess {
-    $network = (docker inspect postgres --format '{{range $k, $v := .NetworkSettings.Networks}}{{$k}} {{end}}' | Out-String).Trim().Split(' ')[0]
+    # Resolve o container pelo projeto do compose, e nao pelo nome fixo "postgres". Com
+    # outra instalacao no ar, o nome fixo apontaria para o container ALHEIO e este teste
+    # passaria validando o banco errado - foi o que mascarou uma falha de subida inteira.
+    $id = (docker compose ps -q postgres 2>$null | Out-String).Trim()
+    if (-not $id) { return $false }
+
+    $network = (docker inspect $id --format '{{range $k, $v := .NetworkSettings.Networks}}{{$k}} {{end}}' | Out-String).Trim().Split(' ')[0]
     if (-not $network) { return $false }
 
     $null = docker run --rm --network $network -e "PGPASSWORD=$env:POSTGRES_PASSWORD" --entrypoint psql (Get-PostgresImage) `
@@ -1015,13 +1021,44 @@ function Wait-Postgres {
     exit 1
 }
 
+function Assert-ComposeUp($Etapa) {
+    if ($LASTEXITCODE -eq 0) { return }
+
+    Write-Host ""
+    Write-Color "==================== ERRO ====================" Red
+    Write-Color "Nao foi possivel iniciar $Etapa." Red
+    Write-Host ""
+    Write-Color "As mensagens do Docker acima explicam o motivo. Os dois casos comuns:" Yellow
+    Write-Color "  - 'container name is already in use': outra instalacao do EduEdu+" White
+    Write-Color "    esta no ar neste computador, em outra pasta." White
+    Write-Color "  - 'port is already allocated': alguma porta ja esta ocupada por" White
+    Write-Color "    outro programa (por exemplo, um banco instalado direto no Windows)." White
+    Write-Host ""
+    Write-Color "A instalacao foi interrompida aqui de proposito. Seguir adiante faria" Red
+    Write-Color "as verificacoes responderem na instalacao antiga e o instalador" Red
+    Write-Color "anunciaria sucesso sem que nada desta versao estivesse no ar." Red
+    Write-Host ""
+    Write-Host "Pressione Enter para fechar..."
+    Read-Host
+    exit 1
+}
+
 function Wait-Mongo {
     Write-Host "`n[ - ] Aguardando o Mongo aceitar conexoes:" -ForegroundColor Yellow
 
     $id = (docker compose ps -q mongo 2>$null | Out-String).Trim()
     if (-not $id) {
-        Write-Color "[ AVISO ] Container do Mongo nao encontrado; seguindo adiante." DarkYellow
-        return
+        # Antes isto era apenas um aviso, e a instalacao seguia sem o banco de documentos -
+        # terminando com "sucesso" enquanto as avaliacoes nao teriam onde ser gravadas.
+        Write-Host ""
+        Write-Color "[ ERRO ] O container do Mongo nao subiu." Red
+        Write-Color "Sem ele as avaliacoes e execucoes nao tem onde ser gravadas." Red
+        Write-Color "Verifique as mensagens do Docker acima - a causa comum e a porta" Yellow
+        Write-Color "$env:MONGO_PORT ja estar ocupada por outro programa nesta maquina." Yellow
+        Write-Host ""
+        Write-Host "Pressione Enter para fechar..."
+        Read-Host
+        exit 1
     }
 
     $maxRetries = 30
@@ -1053,16 +1090,23 @@ function Compose-Containers {
     # Sem --quiet-pull: o download das imagens base soma centenas de MB e, silenciado,
     # e o trecho que mais passa sensacao de travamento numa conexao lenta. O progresso
     # do proprio Docker e a melhor indicacao disponivel aqui.
+    # Cada "compose up" precisa ser verificado. Antes o resultado era ignorado, e uma falha
+    # de "nome em uso" ou "porta ocupada" passava batido - a instalacao seguia validando a
+    # stack antiga e terminava anunciando sucesso.
     docker compose up -d postgres
+    Assert-ComposeUp "Postgres"
+
     Wait-Postgres
 
     docker compose up -d mongo
+    Assert-ComposeUp "Mongo"
     # Antes era um Start-Sleep fixo de 15s: parado na tela e, em maquina lenta, curto
     # demais. Agora espera o banco responder de fato, mostrando cada tentativa.
     Wait-Mongo
 
     # migration e backend esperam o healthcheck do postgres (docker-compose.yml)
     docker compose up -d
+    Assert-ComposeUp "os demais servicos"
 
     Write-Color "----------------------------------" Cyan
 
@@ -1206,6 +1250,61 @@ function Stop-CurrentContainers($Action) {
 
 # Detecta instalacao anterior no escopo DESTE projeto compose, e nao em qualquer coisa
 # que exista no Docker da maquina.
+# O compose.yml fixa container_name para postgres, backend, admin e aluno. Nome de
+# container e GLOBAL no Docker, enquanto todo o resto do instalador e por projeto - e o
+# nome do projeto vem do nome da pasta. Duas pastas diferentes disputam os mesmos nomes.
+#
+# Sem esta guarda o estrago e silencioso e severo: "compose down" nao para os containers do
+# outro projeto, "compose up" falha por nome em uso, e as validacoes seguintes respondem na
+# stack ANTIGA - Wait-Postgres conecta no postgres alheio, Init-Services recebe 200 dos
+# portais alheios, e a instalacao se declara concluida sem que nada dela esteja no ar.
+function Assert-NoForeignContainers {
+    $meuProjeto = ""
+    try { $meuProjeto = (docker compose config --format json 2>$null | ConvertFrom-Json).name } catch { }
+
+    $intrusos = @()
+    foreach ($nome in @("postgres", "backend", "admin", "aluno")) {
+        $existe = (docker ps -aq --filter "name=^${nome}$" 2>$null | Out-String).Trim()
+        if (-not $existe) { continue }
+
+        $dono = ""
+        try {
+            $j = docker inspect $nome 2>$null | ConvertFrom-Json
+            $dono = $j[0].Config.Labels.'com.docker.compose.project'
+        } catch { }
+
+        if ($dono -and $meuProjeto -and $dono -ne $meuProjeto) {
+            $intrusos += [pscustomobject]@{ Nome = $nome; Projeto = $dono }
+        }
+    }
+
+    if ($intrusos.Count -eq 0) { return }
+
+    Write-Host ""
+    Write-Color "==================== ATENCAO ====================" Red
+    Write-Color "Existe outra instalacao do EduEdu+ neste computador, em outra pasta," Red
+    Write-Color "e ela esta ocupando os nomes que esta instalacao precisa usar:" Red
+    Write-Host ""
+    foreach ($i in $intrusos) {
+        Write-Color ("  {0,-10} pertence a instalacao '{1}'" -f $i.Nome, $i.Projeto) Yellow
+    }
+    Write-Host ""
+    Write-Color "Seguir adiante daria um resultado enganoso: a instalacao terminaria" Red
+    Write-Color "dizendo que deu tudo certo, mas quem responderia nas telas seria a" Red
+    Write-Color "instalacao antiga - inclusive com a versao e o endereco antigos." Red
+    Write-Host ""
+    Write-Color "Para resolver, use apenas UMA pasta de instalacao. Pare a outra com:" Yellow
+    foreach ($p in ($intrusos | Select-Object -ExpandProperty Projeto -Unique)) {
+        Write-Color "  docker compose -p $p down" Cyan
+    }
+    Write-Color "ou remova os containers antigos com:" Yellow
+    Write-Color "  docker rm -f $(($intrusos | Select-Object -ExpandProperty Nome) -join ' ')" Cyan
+    Write-Host ""
+    Write-Host "Pressione Enter para fechar..."
+    Read-Host
+    exit 1
+}
+
 function Test-ExistingInstallation {
     $containers = (docker compose ps -aq 2>$null | Out-String).Trim()
     if ($containers) { return $true }
@@ -1492,6 +1591,10 @@ function Main {
     Start-Phase "Verificando os programas necessarios"
     Prerequisites
     Complete-Phase
+
+    # Precisa vir antes de qualquer alteracao: com containers de outra pasta no ar, tudo
+    # daqui para frente mediria a instalacao errada.
+    Assert-NoForeignContainers
 
     # O IP e resolvido antes do menu porque Stop-CurrentContainers precisa saber se as
     # imagens de admin/aluno ainda servem: elas compilam API_URL/ADMIN_URL.

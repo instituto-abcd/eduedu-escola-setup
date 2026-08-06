@@ -923,9 +923,15 @@ function Show-MainMenu {
 
     # A escolha ja foi feita antes de uma reexecucao pos-atualizacao; nao perguntar de novo.
     if ($env:EDUEDU_ACTION -eq "update") {
-        Write-Color "Concluindo a atualizacao escolhida..." Yellow
-        $script:installAction = "update"
-        Stop-CurrentContainers update
+        Write-Color "Concluindo a instalacao escolhida..." Yellow
+        if (Test-ExistingInstallation) {
+            $script:installAction = "update"
+            Stop-CurrentContainers update
+        } else {
+            # Sem instalacao anterior o banco nasce do zero. Manter "install" evita que um
+            # ./postgres-data solto na pasta seja restaurado sem o usuario pedir.
+            $script:installAction = "install"
+        }
         return
     }
 
@@ -943,12 +949,30 @@ function Show-MainMenu {
         $canPre = $prerelease -and ($prerelease -ne $latest) -and (Test-VersionIsNewer $current $prerelease)
     }
 
+    # O opt-in impede ATUALIZAR para uma beta, mas nao impede que o pacote baixado ja SEJA
+    # uma beta - basta pegar o zip errado na pagina de releases. Sem tratamento, a escola
+    # instalaria uma versao de teste sem nunca ser avisada.
+    #
+    # Quem ligou ALLOW_PRERELEASE escolheu isso de proposito e nao precisa do alarme.
+    $pacoteEhTeste = (Test-IsPrerelease $current) -and (-not (Test-PrereleaseAllowed))
+
+    # Trocar por uma estavel anterior so e seguro ANTES de instalar. Com a stack ja no ar,
+    # o banco pode ter sido migrado para frente por essa beta, e "prisma migrate deploy" e
+    # forward-only: reverter as imagens contra um schema mais novo quebraria a instalacao.
+    $podeTrocarPorEstavel = $pacoteEhTeste -and $latest -and (-not $hasInstall) -and ($latest -ne $current)
+
     # As acoes sao montadas em ordem para que os numeros do menu nunca sejam fixos:
     # cada item de atualizacao so existe quando ha de fato uma versao mais nova.
     # O texto e escrito para quem opera a maquina na escola, nao para quem desenvolve:
     # sem "pacote", "release" ou "prerelease", e sem "reiniciar" sozinho, que se confunde
     # com reiniciar o computador.
     $actions = @()
+
+    # Vem em primeiro lugar e marcada como recomendada: e a saida para quem baixou uma
+    # versao de teste sem perceber.
+    if ($podeTrocarPorEstavel) {
+        $actions += @{ Key = "update"; Tag = $latest; Text = "Instalar a versao recomendada ($latest)"; Hint = "versao pronta para uso na escola" }
+    }
     # A dica sobre preservar dados so faz sentido quando existe algo a preservar: numa
     # maquina limpa ela confunde em vez de tranquilizar.
     if ($canUpdate) {
@@ -964,7 +988,9 @@ function Show-MainMenu {
         $actions += @{ Key = "restart"; Tag = $current; Text = "Iniciar o EduEdu+ novamente ($current)"; Hint = "mantem todos os dados" }
         $actions += @{ Key = "clean";   Tag = $current; Text = "Instalar do zero - APAGA TODOS OS DADOS"; Hint = "" }
     } else {
-        $actions += @{ Key = "restart"; Tag = $current; Text = "Instalar agora ($current)"; Hint = "" }
+        $rotulo = if ($pacoteEhTeste) { "Instalar $current mesmo assim  [VERSAO DE TESTE]" } else { "Instalar agora ($current)" }
+        $dica   = if ($pacoteEhTeste) { "ainda em teste - pode apresentar falhas" } else { "" }
+        $actions += @{ Key = "restart"; Tag = $current; Text = $rotulo; Hint = $dica }
     }
     $actions += @{ Key = "exit"; Tag = ""; Text = "Sair sem fazer nada"; Hint = "" }
 
@@ -982,10 +1008,31 @@ function Show-MainMenu {
         } elseif ($latest) {
             Write-Color "Nao ha atualizacao disponivel." Green
         }
+
+        if ($pacoteEhTeste) {
+            # Aqui NAO se oferece a troca por uma estavel anterior: o banco ja pode ter
+            # sido migrado por esta versao, e voltar quebraria a instalacao. O aviso diz
+            # a verdade em vez de oferecer um caminho perigoso.
+            Write-Host ""
+            Write-Color "ATENCAO: este computador esta com uma versao de teste ($current)." DarkYellow
+            Write-Color "Versoes de teste podem apresentar falhas e nao sao indicadas para" DarkYellow
+            Write-Color "o computador que a escola usa no dia a dia." DarkYellow
+            Write-Color "Para voltar a uma versao normal sem perder dados, procure o suporte" DarkYellow
+            Write-Color "do Instituto ABCD - a troca exige cuidados com o banco de dados." DarkYellow
+        }
     } else {
         Write-Color "O EduEdu+ ainda nao esta instalado neste computador." DarkGray
 
-        if ($canUpdate) {
+        if ($pacoteEhTeste) {
+            Write-Host ""
+            Write-Color "ATENCAO: o instalador que voce baixou traz a versao $current," DarkYellow
+            Write-Color "que ainda esta em teste e pode apresentar falhas." DarkYellow
+            if ($latest) {
+                Write-Color "Para uso na escola, escolha a versao recomendada: $latest" Green
+            } else {
+                Write-Color "Nao foi possivel verificar qual e a versao recomendada agora." DarkYellow
+            }
+        } elseif ($canUpdate) {
             Write-Color "Versao que acompanha o instalador: $current" DarkGray
             Write-Color "Versao mais recente disponivel   : $latest" Yellow
         } else {
@@ -1027,21 +1074,28 @@ function Show-MainMenu {
         exit 1
     }
 
+    # Confirmacao para QUALQUER caminho que resulte em instalar uma versao de teste -
+    # inclusive a que veio no proprio pacote, que nao passa por Invoke-ChosenUpdate.
+    # Fica de fora apenas religar uma instalacao de teste ja existente: nada novo e
+    # instalado ali, e avisar a cada execucao viraria ruido que se aprende a ignorar.
+    $vaiInstalarTeste = ($selected.Key -ne "exit") -and (Test-IsPrerelease $selected.Tag)
+    if ($selected.Key -eq "restart" -and $hasInstall) { $vaiInstalarTeste = $false }
+
+    if ($vaiInstalarTeste) {
+        Write-Host ""
+        Write-Color "A versao $($selected.Tag) ainda esta em teste e pode apresentar falhas." DarkYellow
+        Write-Color "Ela nao deve ser usada no computador que a escola utiliza no dia a dia." DarkYellow
+        Write-Host ""
+        if (-not (Ask-YesNo "Tem certeza que deseja instalar esta versao de teste?")) {
+            Write-Color "Nada foi alterado." Green
+            exit 0
+        }
+    }
+
     # A tag vem da acao escolhida, e nao de uma variavel externa: com estavel e versao de
     # teste no mesmo menu, usar $latest aqui instalaria a versao errada.
     switch ($selected.Key) {
         "update" {
-            if (Test-IsPrerelease $selected.Tag) {
-                Write-Host ""
-                Write-Color "A versao $($selected.Tag) ainda esta em teste e pode apresentar falhas." DarkYellow
-                Write-Color "Ela nao deve ser usada no computador que a escola utiliza no dia a dia." DarkYellow
-                Write-Host ""
-                if (-not (Ask-YesNo "Tem certeza que deseja instalar esta versao de teste?")) {
-                    Write-Color "Nada foi alterado." Green
-                    exit 0
-                }
-            }
-
             if (-not (Invoke-ChosenUpdate $selected.Tag)) {
                 Write-Color "A atualizacao nao foi concluida. Nenhuma alteracao foi feita." Yellow
                 Write-Host ""

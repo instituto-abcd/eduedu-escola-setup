@@ -370,7 +370,8 @@ function Get-LatestSetupVersion {
     # /releases/latest ja exclui prerelease, mas a convencao de tag do projeto ja
     # escorregou uma vez (1.4.0-beta01, sem o "v"), por isso o formato e validado aqui.
     if ($tag -notmatch '^v\d+\.\d+(\.\d+)?$') {
-        Write-Color "A ultima release ($tag) nao segue o padrao vX.Y.Z e foi ignorada." DarkYellow
+        Write-Color "Nao foi possivel identificar a versao mais recente (formato inesperado: $tag)." DarkYellow
+        Write-Color "A instalacao continua normalmente com a versao $env:APP_VERSION." DarkYellow
         return $null
     }
 
@@ -944,21 +945,28 @@ function Show-MainMenu {
 
     # As acoes sao montadas em ordem para que os numeros do menu nunca sejam fixos:
     # cada item de atualizacao so existe quando ha de fato uma versao mais nova.
+    # O texto e escrito para quem opera a maquina na escola, nao para quem desenvolve:
+    # sem "pacote", "release" ou "prerelease", e sem "reiniciar" sozinho, que se confunde
+    # com reiniciar o computador.
     $actions = @()
+    # A dica sobre preservar dados so faz sentido quando existe algo a preservar: numa
+    # maquina limpa ela confunde em vez de tranquilizar.
     if ($canUpdate) {
-        $actions += @{ Key = "update"; Tag = $latest; Text = "Atualizar para $latest"; Hint = "(preserva banco, assets e backups)" }
+        $texto = if ($hasInstall) { "Atualizar para $latest" } else { "Instalar a versao mais recente ($latest)" }
+        $dica  = if ($hasInstall) { "mantem todos os dados, arquivos e backups" } else { "" }
+        $actions += @{ Key = "update"; Tag = $latest; Text = $texto; Hint = $dica }
     }
     if ($canPre) {
-        $rotulo = if (Test-IsPrerelease $prerelease) { "VERSAO DE TESTE" } else { "NAO PUBLICADA COMO ESTAVEL" }
-        $actions += @{ Key = "update"; Tag = $prerelease; Text = "Atualizar para $prerelease  [$rotulo]"; Hint = "nao recomendada para uso em escola" }
+        $texto = if ($hasInstall) { "Atualizar para $prerelease" } else { "Instalar $prerelease" }
+        $actions += @{ Key = "update"; Tag = $prerelease; Text = "$texto  [VERSAO DE TESTE]"; Hint = "ainda em teste - nao use no computador da escola" }
     }
     if ($hasInstall) {
-        $actions += @{ Key = "restart"; Tag = $current; Text = "Reiniciar a instalacao atual ($current)"; Hint = "" }
-        $actions += @{ Key = "clean";   Tag = $current; Text = "Instalacao limpa - APAGA TODOS OS DADOS"; Hint = "" }
+        $actions += @{ Key = "restart"; Tag = $current; Text = "Iniciar o EduEdu+ novamente ($current)"; Hint = "mantem todos os dados" }
+        $actions += @{ Key = "clean";   Tag = $current; Text = "Instalar do zero - APAGA TODOS OS DADOS"; Hint = "" }
     } else {
         $actions += @{ Key = "restart"; Tag = $current; Text = "Instalar agora ($current)"; Hint = "" }
     }
-    $actions += @{ Key = "exit"; Tag = ""; Text = "Sair"; Hint = "" }
+    $actions += @{ Key = "exit"; Tag = ""; Text = "Sair sem fazer nada"; Hint = "" }
 
     Write-Host ""
     Write-Color "------------ EduEdu+ Escola ------------" Cyan
@@ -967,25 +975,28 @@ function Show-MainMenu {
     # quando existe instalacao. Numa maquina limpa, chamar isso de "versao instalada" e
     # falso - e e justamente o que alguem le antes de decidir apagar dados.
     if ($hasInstall) {
-        Write-Color "Versao instalada : $current" White
+        Write-Color "Versao instalada neste computador: $current" White
+
+        if ($canUpdate) {
+            Write-Color "Versao mais recente disponivel   : $latest" Yellow
+        } elseif ($latest) {
+            Write-Color "Nao ha atualizacao disponivel." Green
+        }
     } else {
-        Write-Color "Nenhuma instalacao encontrada nesta pasta" DarkGray
-        Write-Color "Versao do pacote : $current" White
+        Write-Color "O EduEdu+ ainda nao esta instalado neste computador." DarkGray
+
+        if ($canUpdate) {
+            Write-Color "Versao que acompanha o instalador: $current" DarkGray
+            Write-Color "Versao mais recente disponivel   : $latest" Yellow
+        } else {
+            # Sem instalacao e sem nada mais novo, so importa o que sera instalado.
+            # Mencionar outras versoes aqui seria ruido para quem opera a maquina.
+            Write-Color "Versao que sera instalada: $current" White
+        }
     }
 
-    if ($canUpdate) {
-        Write-Color "Versao disponivel: $latest" Yellow
-    } elseif ($latest -eq $current) {
-        $sufixo = if ($hasInstall) { "(ja instalada)" } else { "(igual a do pacote)" }
-        Write-Color "Ultima release   : $latest $sufixo" Green
-    } elseif ($latest) {
-        # Chega aqui quando a versao local e MAIS NOVA que a ultima estavel - o caso de
-        # quem esta com uma versao de teste. Dizer "ja instalada" sobre $latest seria
-        # mentira: ela nao esta instalada, apenas nao e uma atualizacao.
-        Write-Color "Ultima release   : $latest (anterior a esta)" DarkGray
-    }
     if (Test-PrereleaseAllowed) {
-        Write-Color "Versoes de teste : habilitadas (ALLOW_PRERELEASE)" DarkYellow
+        Write-Color "Versoes de teste estao habilitadas neste computador." DarkYellow
     }
     Write-Host ""
 
@@ -1022,9 +1033,10 @@ function Show-MainMenu {
         "update" {
             if (Test-IsPrerelease $selected.Tag) {
                 Write-Host ""
-                Write-Color "$($selected.Tag) e uma versao de TESTE, nao homologada para uso em escola." DarkYellow
+                Write-Color "A versao $($selected.Tag) ainda esta em teste e pode apresentar falhas." DarkYellow
+                Write-Color "Ela nao deve ser usada no computador que a escola utiliza no dia a dia." DarkYellow
                 Write-Host ""
-                if (-not (Ask-YesNo "Confirma instalar esta versao de teste?")) {
+                if (-not (Ask-YesNo "Tem certeza que deseja instalar esta versao de teste?")) {
                     Write-Color "Nada foi alterado." Green
                     exit 0
                 }

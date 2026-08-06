@@ -360,7 +360,50 @@ function Get-MachineIP {
             Select-Object -First 1 -ExpandProperty IPAddress
     }
 
+    # Ultimo recurso: qualquer IPv4 que nao seja loopback nem link-local. As faixas acima
+    # cobrem a maioria das redes escolares, mas nao todas - e ficar sem IP e pior do que
+    # usar um fora do padrao, porque o endereco entra COMPILADO nos portais.
+    if (-not $ip) {
+        $ip = Get-NetIPAddress -AddressFamily IPv4 |
+            Where-Object { $_.IPAddress -notmatch '^(127\.|169\.254\.)' } |
+            Select-Object -First 1 -ExpandProperty IPAddress
+
+        if ($ip) {
+            Write-Color "Nenhum IP nas faixas usuais de rede local foi encontrado." DarkYellow
+            Write-Color "Usando $ip. Se os portais nao abrirem em outros computadores da" DarkYellow
+            Write-Color "escola, informe este endereco ao suporte do Instituto ABCD." DarkYellow
+        }
+    }
+
     return $ip
+}
+
+# O endereco detectado e COMPILADO dentro dos portais no momento do build. Seguir sem ele
+# produz uma instalacao que sobe, responde 200 e nao funciona: as telas ficam tentando
+# falar com o proprio site em vez de com a API. Melhor parar aqui.
+function Assert-MachineIP($Ip) {
+    if ($Ip) { return }
+
+    Write-Host ""
+    Write-Color "==================== ATENCAO ====================" Red
+    Write-Color "Nao foi possivel descobrir o endereco de rede deste computador." Red
+    Write-Color "Sem ele os portais nao conseguem falar com o servidor, e a instalacao" Red
+    Write-Color "terminaria parecendo correta mas sem funcionar." Red
+    Write-Host ""
+    Write-Color "Enderecos IPv4 encontrados nesta maquina:" Yellow
+    $todos = Get-NetIPAddress -AddressFamily IPv4 -ErrorAction SilentlyContinue
+    if ($todos) {
+        foreach ($a in $todos) { Write-Color "  $($a.IPAddress)  ($($a.InterfaceAlias))" White }
+    } else {
+        Write-Color "  nenhum" White
+    }
+    Write-Host ""
+    Write-Color "Verifique se o computador esta conectado a rede e tente novamente." Yellow
+    Write-Color "Persistindo, procure o suporte do Instituto ABCD." Yellow
+    Write-Host ""
+    Write-Host "Pressione Enter para fechar..."
+    Read-Host
+    exit 1
 }
 
 
@@ -803,6 +846,37 @@ function Build-Images {
         return
     }
 
+    # API_URL e ADMIN_URL entram COMPILADAS nos portais (ENV VITE_API_URL=${API_URL} no
+    # Dockerfile). Se chegarem vazias ou sem host, o docker build passa a string vazia sem
+    # reclamar, o Vite compila baseURL vazia e o axios volta a usar caminho relativo: as
+    # telas passam a chamar o proprio portal em vez da API. O portal sobe, responde 200 e
+    # nao funciona - e Init-Services, que so confere HTTP 200 na raiz, aprova.
+    foreach ($v in @(
+        @{ Nome = "API_URL";     Valor = $env:API_URL },
+        @{ Nome = "ADMIN_URL";   Valor = $env:ADMIN_URL },
+        @{ Nome = "APP_VERSION"; Valor = $env:APP_VERSION }
+    )) {
+        if (-not $v.Valor) {
+            Write-Color "$($v.Nome) esta vazia - nao e possivel construir os portais." Red
+            Write-Color "Instalacao interrompida para nao gerar uma instalacao quebrada." Red
+            exit 1
+        }
+    }
+
+    # Precisa ter host: "http://:3000" e o resultado de um IP nao detectado, e passa por
+    # uma checagem que so olhe se a variavel esta preenchida.
+    foreach ($v in @(
+        @{ Nome = "API_URL";   Valor = $env:API_URL },
+        @{ Nome = "ADMIN_URL"; Valor = $env:ADMIN_URL }
+    )) {
+        if ($v.Valor -notmatch '^https?://[^:/\s]+') {
+            Write-Color "$($v.Nome) esta invalida: '$($v.Valor)'" Red
+            Write-Color "Provavelmente o endereco de rede da maquina nao foi detectado." Red
+            Write-Color "Instalacao interrompida para nao gerar uma instalacao quebrada." Red
+            exit 1
+        }
+    }
+
     Write-Color "Buildando backend ($env:APP_VERSION)..." Yellow
     docker build -t "eduedu-escola-backend:$env:APP_VERSION" `
         "https://github.com/instituto-abcd/eduedu-escola-backend.git#$env:APP_VERSION"
@@ -1018,12 +1092,63 @@ function Validate-Service($Name, $Url) {
     exit 1
 }
 
+# Validate-Service confere apenas HTTP 200 na raiz, e o nginx devolve 200 mesmo servindo
+# um portal que nao fala com a API. Esta funcao olha o que de fato importa: se o endereco
+# do servidor foi compilado dentro do JavaScript do portal.
+#
+# Sem isso, o modo de falha e silencioso - a instalacao se declara concluida e o problema
+# so aparece quando alguem tenta usar, com as requisicoes indo para o proprio portal.
+function Test-PortalApiAddress($Nome, $Porta, $Endereco) {
+    Write-Host "`n[ - ] Verificando a configuracao do $( $Nome ):" -ForegroundColor Yellow
+
+    try {
+        $pagina = Invoke-WebRequest "http://127.0.0.1:$Porta" -TimeoutSec 15 -UseBasicParsing
+    } catch {
+        Write-Color "[ AVISO ] Nao foi possivel ler o $Nome para conferir. Seguindo." DarkYellow
+        return
+    }
+
+    $scripts = [regex]::Matches($pagina.Content, 'src="([^"]+\.js)"') | ForEach-Object { $_.Groups[1].Value }
+    if (-not $scripts) {
+        Write-Color "[ AVISO ] Nenhum arquivo de script encontrado no $Nome. Seguindo." DarkYellow
+        return
+    }
+
+    foreach ($s in $scripts) {
+        $url = "http://127.0.0.1:$Porta" + ($s -replace '^\./', '/')
+        try {
+            $corpo = (Invoke-WebRequest $url -TimeoutSec 30 -UseBasicParsing).Content
+        } catch { continue }
+
+        if ($corpo -like "*$Endereco*") {
+            Write-Host "[ OK ] $Nome aponta para $Endereco`n" -ForegroundColor Green
+            return
+        }
+    }
+
+    Write-Host ""
+    Write-Color "[ ERRO ] O $Nome foi construido SEM o endereco do servidor ($Endereco)." Red
+    Write-Color "Nesse estado o portal abre, mas as telas tentam falar com o proprio" Red
+    Write-Color "portal em vez de falar com o servidor - e nada funciona." Red
+    Write-Host ""
+    Write-Color "Causa mais comum: as imagens foram construidas quando o endereco da" Yellow
+    Write-Color "maquina ainda nao era conhecido, ou o endereco mudou depois do build." Yellow
+    Write-Color "Execute o instalador novamente e escolha 'Instalar do zero'." Yellow
+    Write-Host ""
+    Write-Host "Pressione Enter para fechar..."
+    Read-Host
+    exit 1
+}
+
 function Init-Services {
     Write-Color "------- Validacao de Servicos -------" Cyan
-    
+
     Validate-Service "Backend API"    "http://127.0.0.1:$env:API_PORT/swagger"
     Validate-Service "Portal Admin"   "http://127.0.0.1:$env:ADMIN_PORT"
     Validate-Service "Portal Aluno"   "http://127.0.0.1:$env:ALUNO_PORT"
+
+    Test-PortalApiAddress "Portal Admin" $env:ADMIN_PORT $env:APP_ADDRESS
+    Test-PortalApiAddress "Portal Aluno" $env:ALUNO_PORT $env:APP_ADDRESS
 
     Write-Color "-------------------------------------" Cyan
 }
@@ -1368,6 +1493,7 @@ function Main {
     # O IP e resolvido antes do menu porque Stop-CurrentContainers precisa saber se as
     # imagens de admin/aluno ainda servem: elas compilam API_URL/ADMIN_URL.
     $ip = Get-MachineIP
+    Assert-MachineIP $ip
     Write-Color "IP detectado: $ip" Yellow
     $script:ipChanged = ($env:APP_ADDRESS -ne $ip)
     $script:skipBuild = (-not $script:ipChanged) -and (Test-ImagesUpToDate)

@@ -96,9 +96,9 @@ function Load-Baseline {
     }
 }
 
-# Mescla com o que ja existe em vez de sobrescrever: as etapas de atualizacao acontecem
-# no processo pai e as de instalacao no filho, entao nenhuma execucao isolada conhece
-# todas elas.
+# Mescla com o que ja existe em vez de sobrescrever: nem toda execucao passa por todas as
+# etapas - uma reexecucao simples nao verifica versao nem faz copia de seguranca -, entao
+# sobrescrever apagaria o historico das etapas que nao rodaram desta vez.
 function Save-Baseline {
     if ($script:phaseTimings.Count -eq 0) { return }
     try {
@@ -111,17 +111,8 @@ function Save-Baseline {
     } catch { }
 }
 
-# EDUEDU_START_TICKS atravessa a reexecucao do instalador: sem isso o processo filho
-# comecaria a contar do zero e informaria um tempo total menor que o real.
 function Start-Run {
-    if ($env:EDUEDU_START_TICKS) {
-        try { $script:runStart = [datetime]::new([long]$env:EDUEDU_START_TICKS) } catch { }
-    }
-    if (-not $script:runStart) {
-        $script:runStart = Get-Date
-        $env:EDUEDU_START_TICKS = $script:runStart.Ticks
-    }
-
+    $script:runStart = Get-Date
     Load-Baseline
 }
 
@@ -410,47 +401,6 @@ function Import-EnvFile {
     }
 }
 
-# Acrescenta ao .env local as chaves que existem no .env de uma versao mais nova,
-# preservando todos os valores ja ajustados nesta maquina. O template e o proprio .env
-# que vem dentro do pacote baixado - por isso esta funcao so faz sentido durante uma
-# atualizacao.
-#
-# E isto que evita o cenario em que imagens de uma versao nova sobem contra um .env
-# antigo: v1.3.1 passou a exigir API_URL e ADMIN_URL, ausentes no .env de v1.2.1, e o
-# resultado seria um portal compilado sem a URL da API - que sobe, responde 200 e nao
-# funciona.
-function Sync-EnvKeys($TemplatePath) {
-    if (-not (Test-Path $TemplatePath)) {
-        Write-Color "O pacote baixado nao trouxe um .env de referencia." DarkYellow
-        Write-Color "Chaves novas desta versao podem estar ausentes no .env desta maquina." DarkYellow
-        return
-    }
-
-    $existing = @{}
-    foreach ($line in @(Get-Content $envPath)) {
-        if ($line -match "^\s*([^#=]+)=") { $existing[$matches[1].Trim()] = $true }
-    }
-
-    $lines = @(Get-Content $envPath)
-    $added = @()
-
-    foreach ($line in @(Get-Content $TemplatePath)) {
-        if ($line -match "^\s*([^#=]+)=(.*)$") {
-            $key = $matches[1].Trim()
-            if (-not $existing.ContainsKey($key)) {
-                $lines += $line
-                $existing[$key] = $true
-                $added += $key
-            }
-        }
-    }
-
-    if ($added.Count -gt 0) {
-        Write-EnvLines $envPath $lines
-        Write-Color "Novas variaveis acrescentadas ao .env: $($added -join ', ')" Yellow
-    }
-}
-
 # Ultima release estavel do repositorio do instalador. Retorna $null quando nao for
 # possivel determinar - falha de rede NUNCA interrompe a instalacao, porque escola com
 # internet instavel precisa conseguir subir a stack com as imagens que ja tem.
@@ -648,72 +598,17 @@ function Backup-Databases {
     Write-EnvLines (Join-Path $dir "versao-anterior.txt") @($env:APP_VERSION)
 }
 
-# Baixa o pacote da tag e aplica sobre a pasta atual, preservando configuracao e dados.
-function Update-SetupFiles($Tag) {
-    $root = (Resolve-Path $projectRoot).Path
-    $zip  = Join-Path $env:TEMP "eduedu-setup-$Tag.zip"
-    $tmp  = Join-Path $env:TEMP "eduedu-setup-$Tag"
-
-    if (Test-Path $zip) { Remove-Item $zip -Force }
-    if (Test-Path $tmp) { Remove-Item $tmp -Recurse -Force }
-
-    Write-Color "Baixando os arquivos da versao $Tag..." Yellow
-    Enable-Tls12
-    try {
-        Invoke-WebRequest -Uri "https://github.com/$setupRepo/archive/refs/tags/$Tag.zip" `
-            -OutFile $zip -TimeoutSec 300 -UseBasicParsing
-        Expand-Archive -Path $zip -DestinationPath $tmp -Force
-    } catch {
-        Write-Color "Falha ao baixar a versao $Tag." Red
-        Write-Color "A versao instalada ($env:APP_VERSION) sera mantida." Yellow
-        return $false
-    }
-
-    $source = Get-ChildItem $tmp -Directory | Select-Object -First 1
-    if (-not $source) {
-        Write-Color "O pacote baixado esta vazio. Atualizacao cancelada." Red
-        return $false
-    }
-
-    # .env fica de fora para nao descartar a configuracao da maquina; os diretorios de
-    # dados nem vem no pacote, mas sao excluidos por seguranca. Instalador-Windows.cmd
-    # tambem fica de fora: o cmd.exe le arquivos .cmd linha a linha e sobrescrever um
-    # em execucao corrompe o fluxo.
-    $roboArgs = @(
-        $source.FullName, $root, "/E", "/R:2", "/W:2",
-        "/NFL", "/NDL", "/NJH", "/NJS", "/NP",
-        "/XF", ".env", "Instalador-Windows.cmd",
-        "/XD", "assets-data", "mongodb-data", "postgres-data", "backup-data", ".git"
-    )
-    & robocopy.exe @roboArgs | Out-Null
-
-    # robocopy usa 0-7 para sucesso e >=8 para falha real. Note que nao ha /MIR nem
-    # /PURGE: arquivos que existem apenas na maquina nunca sao apagados.
-    if ($LASTEXITCODE -ge 8) {
-        Write-Color "Falha ao aplicar os arquivos da versao $Tag (robocopy $LASTEXITCODE)." Red
-        return $false
-    }
-
-    # robocopy sinaliza sucesso com codigo diferente de zero; sem isto o proximo
-    # "if ($LASTEXITCODE -ne 0)" do script interpretaria o sucesso como falha.
-    $global:LASTEXITCODE = 0
-
-    # Chaves novas trazidas por esta versao entram no .env antes de qualquer build. O
-    # template e o .env do pacote, que o robocopy deixou de fora justamente para nao
-    # sobrescrever a configuracao desta maquina.
-    # Precisa vir ANTES da limpeza do diretorio temporario, que e onde esse .env esta.
-    Sync-EnvKeys (Join-Path $source.FullName ".env")
-    Update-EnvFile $envPath "APP_VERSION" $Tag
-
-    Remove-Item $tmp -Recurse -Force -ErrorAction SilentlyContinue
-    Remove-Item $zip -Force -ErrorAction SilentlyContinue
-
-    Write-Color "Arquivos da versao $Tag aplicados." Green
-    return $true
-}
-
-# Executa a atualizacao JA ESCOLHIDA no menu. Nao decide nada por conta propria.
-function Invoke-ChosenUpdate($Tag) {
+# Aponta a instalacao para outra versao da APLICACAO. O instalador nao se substitui:
+# scripts e compose desta pasta permanecem como estao, e apenas APP_VERSION muda.
+#
+# Isso e possivel porque Build-Images constroi a partir dos repositorios de aplicacao na
+# tag (github.com/instituto-abcd/eduedu-escola-{backend,admin,aluno}.git#APP_VERSION) -
+# o codigo da aplicacao nunca veio desta pasta.
+#
+# Consequencia deliberada: trocar de versao nao troca o instalador, entao nao ha
+# reexecucao, nao ha perda de contexto na tela e escolher uma versao anterior nao rebaixa
+# as melhorias do instalador junto. Atualizar o proprio setup e assunto a parte.
+function Set-TargetVersion($Tag) {
     # Sao tres chamadas de API em sequencia, cada uma com ate 20s de timeout: sem
     # anunciar, sao ate um minuto de tela parada logo apos o usuario escolher.
     Start-Phase "Verificando a versao $Tag"
@@ -724,31 +619,13 @@ function Invoke-ChosenUpdate($Tag) {
     Backup-Databases
     Complete-Phase
 
-    Start-Phase "Baixando os arquivos da versao $Tag"
-    if (-not (Update-SetupFiles $Tag)) { return $false }
-    Complete-Phase
+    Update-EnvFile $envPath "APP_VERSION" $Tag
+    Import-EnvFile
 
-    # As etapas acima acontecem neste processo; as de instalacao, no filho. Gravar aqui
-    # garante que ambas entrem no historico usado como estimativa.
-    Save-Baseline
-
-    # Reexecuta o instalador recem-atualizado para que a logica da versao nova valha ja
-    # nesta rodada - e nao apenas na proxima. O PowerShell carrega o script inteiro em
-    # memoria, entao sobrescrever este arquivo enquanto ele roda e seguro; o processo
-    # novo garante que o codigo novo seja o que efetivamente instala.
-    #
-    # EDUEDU_ACTION carrega a escolha ja feita, para que o usuario nao decida duas vezes.
-    # Ela tambem serve de guarda contra loop: com ela definida, Show-MainMenu retorna
-    # antes de consultar a versao, entao o filho nunca dispara outra atualizacao - mesmo
-    # que a gravacao do APP_VERSION tenha falhado.
     Write-Host ""
-    Write-Color "Reiniciando o instalador na versao $Tag..." Cyan
-    Write-Host ""
+    Write-Color "Versao selecionada: $Tag" Green
 
-    $env:EDUEDU_ACTION = "update"
-    $self = Join-Path $PSScriptRoot "startup-windows.ps1"
-    & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $self
-    exit $LASTEXITCODE
+    return $true
 }
 
 # ----------------- Build de Imagens -----------------
@@ -1067,20 +944,6 @@ function Test-ExistingInstallation {
 function Show-MainMenu {
     $script:installAction = "install"
 
-    # A escolha ja foi feita antes de uma reexecucao pos-atualizacao; nao perguntar de novo.
-    if ($env:EDUEDU_ACTION -eq "update") {
-        Write-Color "Concluindo a instalacao escolhida..." Yellow
-        if (Test-ExistingInstallation) {
-            $script:installAction = "update"
-            Stop-CurrentContainers update
-        } else {
-            # Sem instalacao anterior o banco nasce do zero. Manter "install" evita que um
-            # ./postgres-data solto na pasta seja restaurado sem o usuario pedir.
-            $script:installAction = "install"
-        }
-        return
-    }
-
     $current    = $env:APP_VERSION
     $hasInstall = Test-ExistingInstallation
     $latest     = Get-LatestSetupVersion
@@ -1221,7 +1084,7 @@ function Show-MainMenu {
     }
 
     # Confirmacao para QUALQUER caminho que resulte em instalar uma versao de teste -
-    # inclusive a que veio no proprio pacote, que nao passa por Invoke-ChosenUpdate.
+    # inclusive a que veio no proprio pacote, que nao passa por Set-TargetVersion.
     # Fica de fora apenas religar uma instalacao de teste ja existente: nada novo e
     # instalado ali, e avisar a cada execucao viraria ruido que se aprende a ignorar.
     $vaiInstalarTeste = ($selected.Key -ne "exit") -and (Test-IsPrerelease $selected.Tag)
@@ -1242,12 +1105,24 @@ function Show-MainMenu {
     # teste no mesmo menu, usar $latest aqui instalaria a versao errada.
     switch ($selected.Key) {
         "update" {
-            if (-not (Invoke-ChosenUpdate $selected.Tag)) {
-                Write-Color "A atualizacao nao foi concluida. Nenhuma alteracao foi feita." Yellow
+            if (-not (Set-TargetVersion $selected.Tag)) {
+                Write-Color "A troca de versao nao foi concluida. Nenhuma alteracao foi feita." Yellow
                 Write-Host ""
                 Write-Host "Pressione Enter para fechar..."
                 Read-Host
                 exit 1
+            }
+
+            # A versao mudou, entao as imagens atuais nao servem mais - nem as de admin e
+            # aluno, que compilam as URLs. Sem zerar skipBuild, Build-Images seria pulado
+            # e a stack subiria na versao antiga.
+            $script:skipBuild = $false
+
+            if ($hasInstall) {
+                $script:installAction = "update"
+                Stop-CurrentContainers update
+            } else {
+                $script:installAction = "install"
             }
         }
         "restart" {
@@ -1272,6 +1147,10 @@ function Show-MainMenu {
                 Write-Color "Confirmacao nao recebida. Nada foi alterado." Green
                 exit 0
             }
+            # "install" roda "docker compose down --rmi all": as imagens deixam de existir.
+            # skipBuild foi calculado antes disso, quando elas ainda estavam la - manter o
+            # valor antigo pularia o build e o compose subiria sem imagem para usar.
+            $script:skipBuild = $false
             $script:installAction = "install"
             Stop-CurrentContainers install
         }
@@ -1281,8 +1160,6 @@ function Show-MainMenu {
 
 # ----------------- Main -----------------
 function Main {
-    # Retomado de EDUEDU_START_TICKS quando esta e a reexecucao pos-atualizacao, para que
-    # o tempo total informado no fim seja o real, e nao apenas o do processo filho.
     Start-Run
     $start = $script:runStart
 

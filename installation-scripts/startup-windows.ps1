@@ -863,13 +863,16 @@ function Build-Images {
         }
     }
 
-    # Precisa ter host: "http://:3000" e o resultado de um IP nao detectado, e passa por
-    # uma checagem que so olhe se a variavel esta preenchida.
+    # Precisa ter host E, se houver ":", uma porta de verdade depois dele. Sao duas formas
+    # de a URL sair quebrada sem estar vazia:
+    #   "http://:3000"          IP nao detectado   (Get-MachineIP devolveu vazio)
+    #   "http://192.168.0.5:"   porta nao definida (API_PORT vazio no .env)
+    # Ambas produzem baseURL invalido, e o axios volta a usar caminho relativo.
     foreach ($v in @(
         @{ Nome = "API_URL";   Valor = $env:API_URL },
         @{ Nome = "ADMIN_URL"; Valor = $env:ADMIN_URL }
     )) {
-        if ($v.Valor -notmatch '^https?://[^:/\s]+') {
+        if ($v.Valor -notmatch '^https?://[^:/\s]+(:\d+)?(/|$)') {
             Write-Color "$($v.Nome) esta invalida: '$($v.Valor)'" Red
             Write-Color "Provavelmente o endereco de rede da maquina nao foi detectado." Red
             Write-Color "Instalacao interrompida para nao gerar uma instalacao quebrada." Red

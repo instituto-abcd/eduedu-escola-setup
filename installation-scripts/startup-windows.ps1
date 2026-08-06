@@ -53,6 +53,107 @@ function Spinner-Run($ScriptBlock, $Message) {
     Write-Host "`r[ OK ] $Message" -ForegroundColor Green
 }
 
+# ----------------- Etapas, cronometro e estimativa -----------------
+
+# Boa parte da instalacao e silenciosa por natureza (chamadas de API, download do
+# pacote, pull de imagens). Sem indicacao de progresso a tela fica parada por minutos e
+# o usuario nao sabe se travou. Cada etapa se anuncia, informa quanto levou e, quando ha
+# historico, quanto levou da ultima vez.
+#
+# Os tempos da execucao anterior ficam em .install-timing.json, na raiz da instalacao.
+# E so um auxilio de interface: se o arquivo sumir ou vier corrompido, tudo continua
+# funcionando sem estimativa.
+
+$timingPath = Join-Path $projectRoot ".install-timing.json"
+
+$script:runStart     = $null
+$script:phaseName    = $null
+$script:phaseStart   = $null
+$script:phaseTimings = @{}
+$script:baseline     = $null
+
+function Format-Duration($Seconds) {
+    $s = [int][math]::Round($Seconds)
+    if ($s -lt 60) { return "${s}s" }
+    return "{0}min {1:d2}s" -f [int]($s / 60), ($s % 60)
+}
+
+function Get-ElapsedTotal {
+    if (-not $script:runStart) { return 0 }
+    return ((Get-Date) - $script:runStart).TotalSeconds
+}
+
+function Load-Baseline {
+    if (-not (Test-Path $timingPath)) { return }
+    try {
+        $dados = Get-Content $timingPath -Raw | ConvertFrom-Json
+        $mapa = @{}
+        foreach ($p in $dados.PSObject.Properties) { $mapa[$p.Name] = [double]$p.Value }
+        if ($mapa.Count -gt 0) { $script:baseline = $mapa }
+    } catch {
+        # Historico ilegivel nao e motivo para interromper nada.
+        $script:baseline = $null
+    }
+}
+
+# Mescla com o que ja existe em vez de sobrescrever: as etapas de atualizacao acontecem
+# no processo pai e as de instalacao no filho, entao nenhuma execucao isolada conhece
+# todas elas.
+function Save-Baseline {
+    if ($script:phaseTimings.Count -eq 0) { return }
+    try {
+        $mapa = @{}
+        if ($script:baseline) { foreach ($k in $script:baseline.Keys) { $mapa[$k] = $script:baseline[$k] } }
+        foreach ($k in $script:phaseTimings.Keys) { $mapa[$k] = $script:phaseTimings[$k] }
+
+        $json = $mapa | ConvertTo-Json
+        [System.IO.File]::WriteAllText($timingPath, $json, (New-Object System.Text.UTF8Encoding($false)))
+    } catch { }
+}
+
+# EDUEDU_START_TICKS atravessa a reexecucao do instalador: sem isso o processo filho
+# comecaria a contar do zero e informaria um tempo total menor que o real.
+function Start-Run {
+    if ($env:EDUEDU_START_TICKS) {
+        try { $script:runStart = [datetime]::new([long]$env:EDUEDU_START_TICKS) } catch { }
+    }
+    if (-not $script:runStart) {
+        $script:runStart = Get-Date
+        $env:EDUEDU_START_TICKS = $script:runStart.Ticks
+    }
+
+    Load-Baseline
+}
+
+function Start-Phase($Name) {
+    $script:phaseName  = $Name
+    $script:phaseStart = Get-Date
+
+    $decorrido = Format-Duration (Get-ElapsedTotal)
+    $previsao  = ""
+
+    if ($script:baseline -and $script:baseline.ContainsKey($Name)) {
+        $previsao = " - da ultima vez levou $(Format-Duration $script:baseline[$Name])"
+    }
+
+    Write-Host ""
+    Write-Color "[$decorrido] $Name...$previsao" Cyan
+}
+
+function Complete-Phase {
+    if (-not $script:phaseName) { return }
+
+    $duracao = ((Get-Date) - $script:phaseStart).TotalSeconds
+    $script:phaseTimings[$script:phaseName] = [math]::Round($duracao, 1)
+
+    # Deliberadamente nao se estima o tempo TOTAL restante. O historico guarda todas as
+    # etapas ja vistas, mas nem toda execucao passa por todas: uma reexecucao simples nao
+    # baixa arquivos nem reconstroi imagens. Somar tudo daria um numero sempre maior que a
+    # realidade, e estimativa errada mina a confianca mais do que a ausencia dela.
+    Write-Color "  concluido em $(Format-Duration $duracao)" Green
+    $script:phaseName = $null
+}
+
 function Ask-YesNo($Question) {
     while ($true) {
         $response = Read-Host "$Question (S/N)"
@@ -613,11 +714,23 @@ function Update-SetupFiles($Tag) {
 
 # Executa a atualizacao JA ESCOLHIDA no menu. Nao decide nada por conta propria.
 function Invoke-ChosenUpdate($Tag) {
+    # Sao tres chamadas de API em sequencia, cada uma com ate 20s de timeout: sem
+    # anunciar, sao ate um minuto de tela parada logo apos o usuario escolher.
+    Start-Phase "Verificando a versao $Tag"
     if (-not (Test-AppTagsExist $Tag)) { return $false }
+    Complete-Phase
 
+    Start-Phase "Fazendo copia de seguranca dos dados"
     Backup-Databases
+    Complete-Phase
 
+    Start-Phase "Baixando os arquivos da versao $Tag"
     if (-not (Update-SetupFiles $Tag)) { return $false }
+    Complete-Phase
+
+    # As etapas acima acontecem neste processo; as de instalacao, no filho. Gravar aqui
+    # garante que ambas entrem no historico usado como estimativa.
+    Save-Baseline
 
     # Reexecuta o instalador recem-atualizado para que a logica da versao nova valha ja
     # nesta rodada - e nao apenas na proxima. O PowerShell carrega o script inteiro em
@@ -787,6 +900,34 @@ function Wait-Postgres {
     exit 1
 }
 
+function Wait-Mongo {
+    Write-Host "`n[ - ] Aguardando o Mongo aceitar conexoes:" -ForegroundColor Yellow
+
+    $id = (docker compose ps -q mongo 2>$null | Out-String).Trim()
+    if (-not $id) {
+        Write-Color "[ AVISO ] Container do Mongo nao encontrado; seguindo adiante." DarkYellow
+        return
+    }
+
+    $maxRetries = 30
+    $attempt = 1
+
+    while ($attempt -le $maxRetries) {
+        $null = docker exec $id mongosh --quiet --username $env:MONGO_USER --password $env:MONGO_PASSWORD `
+            --authenticationDatabase admin --eval "db.adminCommand('ping')" 2>&1
+        if ($LASTEXITCODE -eq 0) {
+            Write-Host "[ OK ] Mongo pronto`n" -ForegroundColor Green
+            return
+        }
+
+        Write-Host "[ Tentativa $attempt/$maxRetries ] Mongo ainda nao aceitou a conexao..." -ForegroundColor Yellow
+        Start-Sleep -Seconds 2
+        $attempt++
+    }
+
+    Write-Color "[ AVISO ] O Mongo demorou mais que o esperado. A instalacao continua." DarkYellow
+}
+
 function Compose-Containers {
     Push-Location $projectRoot
 
@@ -794,14 +935,19 @@ function Compose-Containers {
 
     Restore-PostgresSnapshot
 
-    docker compose up -d postgres --quiet-pull
+    # Sem --quiet-pull: o download das imagens base soma centenas de MB e, silenciado,
+    # e o trecho que mais passa sensacao de travamento numa conexao lenta. O progresso
+    # do proprio Docker e a melhor indicacao disponivel aqui.
+    docker compose up -d postgres
     Wait-Postgres
 
-    docker compose up -d mongo --quiet-pull
-    Start-Sleep -Seconds 15
+    docker compose up -d mongo
+    # Antes era um Start-Sleep fixo de 15s: parado na tela e, em maquina lenta, curto
+    # demais. Agora espera o banco responder de fato, mostrando cada tentativa.
+    Wait-Mongo
 
     # migration e backend esperam o healthcheck do postgres (docker-compose.yml)
-    docker compose up -d --quiet-pull
+    docker compose up -d
 
     Write-Color "----------------------------------" Cyan
 
@@ -1135,7 +1281,10 @@ function Show-MainMenu {
 
 # ----------------- Main -----------------
 function Main {
-    $start = Get-Date
+    # Retomado de EDUEDU_START_TICKS quando esta e a reexecucao pos-atualizacao, para que
+    # o tempo total informado no fim seja o real, e nao apenas o do processo filho.
+    Start-Run
+    $start = $script:runStart
 
     # Bloqueia execucao dentro de pastas do OneDrive (antes de qualquer alteracao)
     Ensure-NotOneDrive
@@ -1159,7 +1308,9 @@ function Main {
     # Atualiza DATABASE_URL
     Update-EnvFile ".env" "DATABASE_URL" "postgresql://${env:POSTGRES_USER}:${env:POSTGRES_PASSWORD}@postgres:5432/${env:POSTGRES_DB}?schema=public"
 
+    Start-Phase "Verificando os programas necessarios"
     Prerequisites
+    Complete-Phase
 
     # O IP e resolvido antes do menu porque Stop-CurrentContainers precisa saber se as
     # imagens de admin/aluno ainda servem: elas compilam API_URL/ADMIN_URL.
@@ -1181,14 +1332,25 @@ function Main {
 
     Import-EnvFile
 
+    Start-Phase "Preparando os programas do EduEdu+"
     Build-Images
+    Complete-Phase
+
+    Start-Phase "Iniciando os servicos"
     Compose-Containers
+    Complete-Phase
+
+    Start-Phase "Conferindo se tudo respondeu"
     Init-Services
+    Complete-Phase
 
-    $end = Get-Date
-    $execTime = [math]::Round(($end - $start).TotalSeconds, 2)
+    # Grava os tempos desta execucao para servir de estimativa na proxima.
+    Save-Baseline
 
-    Write-Color "EduEdu Escola - Versao $env:APP_VERSION - Tempo: $execTime s `n" Green
+    $execTime = Format-Duration ((Get-Date) - $start).TotalSeconds
+
+    Write-Host ""
+    Write-Color "EduEdu Escola - Versao $env:APP_VERSION - concluido em $execTime `n" Green
     Write-Color "`n--> Link de acesso Portal Admin: http://$( $ip ):$env:ADMIN_PORT" White
     Write-Color "--> Link de acesso portal Aluno: http://$( $ip ):$env:ALUNO_PORT `n" White
 }

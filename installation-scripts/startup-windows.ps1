@@ -111,8 +111,17 @@ function Save-Baseline {
     } catch { }
 }
 
+# EDUEDU_START_TICKS atravessa a reexecucao pos-atualizacao: sem isso o processo filho
+# comecaria a contar do zero e informaria no fim um tempo menor que o real.
 function Start-Run {
-    $script:runStart = Get-Date
+    if ($env:EDUEDU_START_TICKS) {
+        try { $script:runStart = [datetime]::new([long]$env:EDUEDU_START_TICKS) } catch { }
+    }
+    if (-not $script:runStart) {
+        $script:runStart = Get-Date
+        $env:EDUEDU_START_TICKS = $script:runStart.Ticks
+    }
+
     Load-Baseline
 }
 
@@ -145,8 +154,13 @@ function Complete-Phase {
     $script:phaseName = $null
 }
 
+# Tentativas limitadas: com o stdin fechado (execucao nao interativa) Read-Host retorna
+# vazio de imediato, e um "while (\$true)" giraria para sempre inundando o console. Sem
+# resposta valida, assume NAO - a opcao que nao altera nada.
 function Ask-YesNo($Question) {
-    while ($true) {
+    $tentativas = 0
+    while ($tentativas -lt 3) {
+        $tentativas++
         $response = Read-Host "$Question (S/N)"
         if ($response -match '^(S|s|Sim|sim)$') {
             return $true
@@ -156,6 +170,9 @@ function Ask-YesNo($Question) {
             Write-Host "Resposta invalida. Por favor, responda com S ou N." -ForegroundColor Yellow
         }
     }
+
+    Write-Host "Nenhuma resposta valida informada; assumindo NAO." -ForegroundColor Yellow
+    return $false
 }
 
 # ----------------- Validacoes -----------------
@@ -401,6 +418,47 @@ function Import-EnvFile {
     }
 }
 
+# Acrescenta ao .env local as chaves que existem no .env de uma versao mais nova,
+# preservando todos os valores ja ajustados nesta maquina. O template e o proprio .env
+# que vem dentro do pacote baixado - por isso esta funcao so faz sentido durante uma
+# atualizacao.
+#
+# E isto que evita o cenario em que imagens de uma versao nova sobem contra um .env
+# antigo: v1.3.1 passou a exigir API_URL e ADMIN_URL, ausentes no .env de v1.2.1, e o
+# resultado seria um portal compilado sem a URL da API - que sobe, responde 200 e nao
+# funciona.
+function Sync-EnvKeys($TemplatePath) {
+    if (-not (Test-Path $TemplatePath)) {
+        Write-Color "O pacote baixado nao trouxe um .env de referencia." DarkYellow
+        Write-Color "Chaves novas desta versao podem estar ausentes no .env desta maquina." DarkYellow
+        return
+    }
+
+    $existing = @{}
+    foreach ($line in @(Get-Content $envPath)) {
+        if ($line -match "^\s*([^#=]+)=") { $existing[$matches[1].Trim()] = $true }
+    }
+
+    $lines = @(Get-Content $envPath)
+    $added = @()
+
+    foreach ($line in @(Get-Content $TemplatePath)) {
+        if ($line -match "^\s*([^#=]+)=(.*)$") {
+            $key = $matches[1].Trim()
+            if (-not $existing.ContainsKey($key)) {
+                $lines += $line
+                $existing[$key] = $true
+                $added += $key
+            }
+        }
+    }
+
+    if ($added.Count -gt 0) {
+        Write-EnvLines $envPath $lines
+        Write-Color "Novas variaveis acrescentadas ao .env: $($added -join ', ')" Yellow
+    }
+}
+
 # Ultima release estavel do repositorio do instalador. Retorna $null quando nao for
 # possivel determinar - falha de rede NUNCA interrompe a instalacao, porque escola com
 # internet instavel precisa conseguir subir a stack com as imagens que ja tem.
@@ -598,17 +656,95 @@ function Backup-Databases {
     Write-EnvLines (Join-Path $dir "versao-anterior.txt") @($env:APP_VERSION)
 }
 
-# Aponta a instalacao para outra versao da APLICACAO. O instalador nao se substitui:
-# scripts e compose desta pasta permanecem como estao, e apenas APP_VERSION muda.
+# Baixa o pacote da tag e aplica sobre a pasta atual, preservando configuracao e dados.
+function Update-SetupFiles($Tag) {
+    $root = (Resolve-Path $projectRoot).Path
+    $zip  = Join-Path $env:TEMP "eduedu-setup-$Tag.zip"
+    $tmp  = Join-Path $env:TEMP "eduedu-setup-$Tag"
+
+    if (Test-Path $zip) { Remove-Item $zip -Force }
+    if (Test-Path $tmp) { Remove-Item $tmp -Recurse -Force }
+
+    Write-Color "Baixando os arquivos da versao $Tag..." Yellow
+    Enable-Tls12
+    try {
+        Invoke-WebRequest -Uri "https://github.com/$setupRepo/archive/refs/tags/$Tag.zip" `
+            -OutFile $zip -TimeoutSec 300 -UseBasicParsing
+        Expand-Archive -Path $zip -DestinationPath $tmp -Force
+    } catch {
+        Write-Color "Falha ao baixar a versao $Tag." Red
+        Write-Color "A versao instalada ($env:APP_VERSION) sera mantida." Yellow
+        return $false
+    }
+
+    $source = Get-ChildItem $tmp -Directory | Select-Object -First 1
+    if (-not $source) {
+        Write-Color "O pacote baixado esta vazio. Atualizacao cancelada." Red
+        return $false
+    }
+
+    # .env fica de fora para nao descartar a configuracao da maquina; os diretorios de
+    # dados nem vem no pacote, mas sao excluidos por seguranca. Instalador-Windows.cmd
+    # tambem fica de fora: o cmd.exe le arquivos .cmd linha a linha e sobrescrever um
+    # em execucao corrompe o fluxo.
+    $roboArgs = @(
+        $source.FullName, $root, "/E", "/R:2", "/W:2",
+        "/NFL", "/NDL", "/NJH", "/NJS", "/NP",
+        "/XF", ".env", "Instalador-Windows.cmd",
+        "/XD", "assets-data", "mongodb-data", "postgres-data", "backup-data", ".git"
+    )
+    & robocopy.exe @roboArgs | Out-Null
+
+    # robocopy usa 0-7 para sucesso e >=8 para falha real. Note que nao ha /MIR nem
+    # /PURGE: arquivos que existem apenas na maquina nunca sao apagados.
+    if ($LASTEXITCODE -ge 8) {
+        Write-Color "Falha ao aplicar os arquivos da versao $Tag (robocopy $LASTEXITCODE)." Red
+        return $false
+    }
+
+    # robocopy sinaliza sucesso com codigo diferente de zero; sem isto o proximo
+    # "if ($LASTEXITCODE -ne 0)" do script interpretaria o sucesso como falha.
+    $global:LASTEXITCODE = 0
+
+    # Chaves novas trazidas por esta versao entram no .env antes de qualquer build. O
+    # template e o .env do pacote, que o robocopy deixou de fora justamente para nao
+    # sobrescrever a configuracao desta maquina.
+    # Precisa vir ANTES da limpeza do diretorio temporario, que e onde esse .env esta.
+    Sync-EnvKeys (Join-Path $source.FullName ".env")
+    Update-EnvFile $envPath "APP_VERSION" $Tag
+
+    Remove-Item $tmp -Recurse -Force -ErrorAction SilentlyContinue
+    Remove-Item $zip -Force -ErrorAction SilentlyContinue
+
+    Write-Color "Arquivos da versao $Tag aplicados." Green
+    return $true
+}
+
+# Leva a instalacao para uma versao mais nova: baixa os arquivos daquela tag, mescla as
+# chaves novas do .env, grava APP_VERSION e reexecuta o instalador ja atualizado.
 #
-# Isso e possivel porque Build-Images constroi a partir dos repositorios de aplicacao na
-# tag (github.com/instituto-abcd/eduedu-escola-{backend,admin,aluno}.git#APP_VERSION) -
-# o codigo da aplicacao nunca veio desta pasta.
+# Os arquivos do setup mudam em toda transicao de versao - v1.3.1 passou a exigir API_URL
+# e ADMIN_URL, removeu RABBITMQ_URI e renomeou build-args -, entao trocar so APP_VERSION
+# construiria imagens novas com orquestracao velha. Por isso a atualizacao traz os dois.
 #
-# Consequencia deliberada: trocar de versao nao troca o instalador, entao nao ha
-# reexecucao, nao ha perda de contexto na tela e escolher uma versao anterior nao rebaixa
-# as melhorias do instalador junto. Atualizar o proprio setup e assunto a parte.
+# Vale APENAS para frente. Ir para uma versao anterior e bloqueado: "prisma migrate
+# deploy" e forward-only, e reverter as imagens contra um banco ja migrado quebraria a
+# instalacao. Alem disso, rebaixar o instalador junto levaria a scripts que nao conhecem
+# este fluxo - foi o que se observou ao instalar a v1.3.1 a partir de uma beta.
 function Set-TargetVersion($Tag) {
+    if (-not (Test-VersionIsNewer $env:APP_VERSION $Tag)) {
+        Write-Host ""
+        if ($Tag -eq $env:APP_VERSION) {
+            Write-Color "A versao $Tag ja e a atual - nao ha o que atualizar." Yellow
+        } else {
+            Write-Color "A versao $Tag e anterior a atual ($env:APP_VERSION)." Red
+            Write-Color "Voltar para uma versao anterior nao e suportado: o banco de dados ja" Red
+            Write-Color "pode ter sido atualizado e nao consegue voltar atras sozinho." Red
+            Write-Color "Se precisar disso, procure o suporte do Instituto ABCD." Yellow
+        }
+        return $false
+    }
+
     # Sao tres chamadas de API em sequencia, cada uma com ate 20s de timeout: sem
     # anunciar, sao ate um minuto de tela parada logo apos o usuario escolher.
     Start-Phase "Verificando a versao $Tag"
@@ -619,13 +755,38 @@ function Set-TargetVersion($Tag) {
     Backup-Databases
     Complete-Phase
 
-    Update-EnvFile $envPath "APP_VERSION" $Tag
-    Import-EnvFile
+    Start-Phase "Baixando os arquivos da versao $Tag"
+    if (-not (Update-SetupFiles $Tag)) { return $false }
+    Complete-Phase
+
+    # As etapas acima acontecem neste processo e as de instalacao no processo reexecutado;
+    # gravar aqui garante que ambas entrem no historico usado como estimativa.
+    Save-Baseline
+
+    # Reexecuta o instalador recem-baixado para que a logica da versao nova valha ja nesta
+    # rodada. O PowerShell carrega o script inteiro em memoria, entao sobrescrever este
+    # arquivo enquanto ele roda e seguro.
+    #
+    # EDUEDU_ACTION carrega a escolha ja feita, para o usuario nao decidir duas vezes, e
+    # serve de guarda contra loop: com ela definida, Show-MainMenu retorna antes de
+    # consultar versao, entao o processo filho nunca dispara outra atualizacao.
+    $novo = Join-Path $PSScriptRoot "startup-windows.ps1"
+    if (-not (Select-String -Path $novo -Pattern 'EDUEDU_ACTION' -Quiet)) {
+        # Salvaguarda para combinacoes nao previstas: se o script baixado nao conhece o
+        # protocolo, ele vai reapresentar o proprio menu. Melhor avisar do que deixar o
+        # usuario sem contexto.
+        Write-Host ""
+        Write-Color "O instalador da versao $Tag e anterior a este fluxo e vai reiniciar" DarkYellow
+        Write-Color "do proprio jeito - ele pode perguntar novamente o que voce deseja fazer." DarkYellow
+    }
 
     Write-Host ""
-    Write-Color "Versao selecionada: $Tag" Green
+    Write-Color "Instalador atualizado para $Tag. Retomando a instalacao..." Cyan
+    Write-Host ""
 
-    return $true
+    $env:EDUEDU_ACTION = "update"
+    & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $novo
+    exit $LASTEXITCODE
 }
 
 # ----------------- Build de Imagens -----------------
@@ -944,6 +1105,22 @@ function Test-ExistingInstallation {
 function Show-MainMenu {
     $script:installAction = "install"
 
+    # A escolha ja foi feita antes da reexecucao pos-atualizacao; nao perguntar de novo.
+    if ($env:EDUEDU_ACTION -eq "update") {
+        Write-Color "Concluindo a instalacao escolhida..." Yellow
+        if (Test-ExistingInstallation) {
+            $script:installAction = "update"
+            Stop-CurrentContainers update
+        } else {
+            # Sem instalacao anterior o banco nasce do zero. Manter "install" evita que um
+            # ./postgres-data solto na pasta seja restaurado sem o usuario pedir.
+            $script:installAction = "install"
+        }
+        # A versao mudou, entao as imagens antigas nao servem.
+        $script:skipBuild = $false
+        return
+    }
+
     $current    = $env:APP_VERSION
     $hasInstall = Test-ExistingInstallation
     $latest     = Get-LatestSetupVersion
@@ -965,10 +1142,10 @@ function Show-MainMenu {
     # Quem ligou ALLOW_PRERELEASE escolheu isso de proposito e nao precisa do alarme.
     $pacoteEhTeste = (Test-IsPrerelease $current) -and (-not (Test-PrereleaseAllowed))
 
-    # Trocar por uma estavel anterior so e seguro ANTES de instalar. Com a stack ja no ar,
-    # o banco pode ter sido migrado para frente por essa beta, e "prisma migrate deploy" e
-    # forward-only: reverter as imagens contra um schema mais novo quebraria a instalacao.
-    $podeTrocarPorEstavel = $pacoteEhTeste -and $latest -and (-not $hasInstall) -and ($latest -ne $current)
+    # Nao se oferece trocar por uma estavel anterior. Ir para tras nao e suportado: o
+    # banco e forward-only e o instalador seria rebaixado junto. Quem baixou o pacote
+    # errado e orientado a baixar o certo, que e a unica saida correta.
+    $temEstavelAnterior = $pacoteEhTeste -and $latest -and ($latest -ne $current)
 
     # As acoes sao montadas em ordem para que os numeros do menu nunca sejam fixos:
     # cada item de atualizacao so existe quando ha de fato uma versao mais nova.
@@ -977,11 +1154,6 @@ function Show-MainMenu {
     # com reiniciar o computador.
     $actions = @()
 
-    # Vem em primeiro lugar e marcada como recomendada: e a saida para quem baixou uma
-    # versao de teste sem perceber.
-    if ($podeTrocarPorEstavel) {
-        $actions += @{ Key = "update"; Tag = $latest; Text = "Instalar a versao recomendada ($latest)"; Hint = "versao pronta para uso na escola" }
-    }
     # A dica sobre preservar dados so faz sentido quando existe algo a preservar: numa
     # maquina limpa ela confunde em vez de tranquilizar.
     if ($canUpdate) {
@@ -1036,11 +1208,15 @@ function Show-MainMenu {
             Write-Host ""
             Write-Color "ATENCAO: o instalador que voce baixou traz a versao $current," DarkYellow
             Write-Color "que ainda esta em teste e pode apresentar falhas." DarkYellow
-            if ($latest) {
-                Write-Color "Para uso na escola, escolha a versao recomendada: $latest" Green
-            } else {
-                Write-Color "Nao foi possivel verificar qual e a versao recomendada agora." DarkYellow
+            Write-Host ""
+            if ($temEstavelAnterior) {
+                Write-Color "A versao indicada para a escola e a $latest." White
             }
+            # O instalador nao pode instalar uma versao anterior por conta propria, entao a
+            # orientacao precisa ser acionavel: baixar o pacote certo.
+            Write-Color "Para usar na escola, baixe o instalador novamente escolhendo a" White
+            Write-Color "versao marcada como 'Latest' em:" White
+            Write-Color "  https://github.com/$setupRepo/releases/latest" Cyan
         } elseif ($canUpdate) {
             Write-Color "Versao que acompanha o instalador: $current" DarkGray
             Write-Color "Versao mais recente disponivel   : $latest" Yellow

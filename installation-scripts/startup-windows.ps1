@@ -359,8 +359,9 @@ function Get-LatestSetupVersion {
         $release = Invoke-RestMethod -Uri "https://api.github.com/repos/$setupRepo/releases/latest" `
             -Headers $githubUA -TimeoutSec 20
     } catch {
-        Write-Color "Nao foi possivel consultar a ultima versao no GitHub." DarkYellow
-        Write-Color "Prosseguindo com a versao instalada ($env:APP_VERSION)." DarkYellow
+        # Nao dizer "versao instalada" aqui: numa maquina limpa nao ha nenhuma.
+        Write-Color "Nao foi possivel verificar se ha uma versao mais nova (sem internet?)." DarkYellow
+        Write-Color "A instalacao continua normalmente com a versao $env:APP_VERSION." DarkYellow
         return $null
     }
 
@@ -961,11 +962,27 @@ function Show-MainMenu {
 
     Write-Host ""
     Write-Color "------------ EduEdu+ Escola ------------" Cyan
-    Write-Color "Versao instalada : $current" White
+
+    # APP_VERSION e a versao que acompanha o instalador, e so coincide com a instalada
+    # quando existe instalacao. Numa maquina limpa, chamar isso de "versao instalada" e
+    # falso - e e justamente o que alguem le antes de decidir apagar dados.
+    if ($hasInstall) {
+        Write-Color "Versao instalada : $current" White
+    } else {
+        Write-Color "Nenhuma instalacao encontrada nesta pasta" DarkGray
+        Write-Color "Versao do pacote : $current" White
+    }
+
     if ($canUpdate) {
         Write-Color "Versao disponivel: $latest" Yellow
+    } elseif ($latest -eq $current) {
+        $sufixo = if ($hasInstall) { "(ja instalada)" } else { "(igual a do pacote)" }
+        Write-Color "Ultima release   : $latest $sufixo" Green
     } elseif ($latest) {
-        Write-Color "Versao disponivel: $latest (ja instalada)" Green
+        # Chega aqui quando a versao local e MAIS NOVA que a ultima estavel - o caso de
+        # quem esta com uma versao de teste. Dizer "ja instalada" sobre $latest seria
+        # mentira: ela nao esta instalada, apenas nao e uma atualizacao.
+        Write-Color "Ultima release   : $latest (anterior a esta)" DarkGray
     }
     if (Test-PrereleaseAllowed) {
         Write-Color "Versoes de teste : habilitadas (ALLOW_PRERELEASE)" DarkYellow

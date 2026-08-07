@@ -445,6 +445,19 @@ function Enable-Tls12 {
 }
 
 function Write-EnvLines($Path, $Lines) {
+    # Caminho relativo precisa ser resolvido ANTES de chegar ao .NET. As classes
+    # [System.IO.*] usam o diretorio de trabalho do processo .NET, que NAO acompanha
+    # Set-Location nem Push-Location do PowerShell.
+    #
+    # O Instalador-Windows.cmd sobe elevado via "Start-Process -Verb RunAs", e um processo
+    # elevado comeca em C:\WINDOWS\system32. Sem esta resolucao, gravar ".env" escreveria
+    # em C:\WINDOWS\system32\.env: o .env do projeto ficava intacto, o IP detectado nunca
+    # era persistido, e os portais eram construidos com API_URL vazia - ou seja, subiam
+    # respondendo 200 e mandando as requisicoes para si mesmos.
+    if (-not [System.IO.Path]::IsPathRooted($Path)) {
+        $Path = Join-Path (Get-Location).Path $Path
+    }
+
     # UTF-8 sem BOM: com BOM o docker compose leria a primeira chave do arquivo com um
     # caractere invisivel no nome, e ela chegaria vazia aos containers.
     $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
@@ -1631,12 +1644,15 @@ function Main {
     # sao sempre as internas (27017 e 5432). POSTGRES_PORT/MONGO_PORT valem apenas
     # para o mapeamento no host.
 
+    # Sempre $envPath (absoluto), nunca ".env": um caminho relativo aqui depende do
+    # diretorio de trabalho, e o instalador roda elevado a partir de system32.
+
     # Atualiza MONGO_URI
-    Update-EnvFile ".env" "MONGO_URI" "mongodb://${env:MONGO_USER}:${env:MONGO_PASSWORD}@mongo:27017/eduedu?authSource=admin"
+    Update-EnvFile $envPath "MONGO_URI" "mongodb://${env:MONGO_USER}:${env:MONGO_PASSWORD}@mongo:27017/eduedu?authSource=admin"
 
 
     # Atualiza DATABASE_URL
-    Update-EnvFile ".env" "DATABASE_URL" "postgresql://${env:POSTGRES_USER}:${env:POSTGRES_PASSWORD}@postgres:5432/${env:POSTGRES_DB}?schema=public"
+    Update-EnvFile $envPath "DATABASE_URL" "postgresql://${env:POSTGRES_USER}:${env:POSTGRES_PASSWORD}@postgres:5432/${env:POSTGRES_DB}?schema=public"
 
     Start-Phase "Verificando os programas necessarios"
     Prerequisites
@@ -1658,11 +1674,11 @@ function Main {
     # informa; atualizar e uma escolha do usuario, nunca um efeito colateral.
     Show-MainMenu
 
-    Update-EnvFile ".env" "FILE_SERVER_URL" "http://${ip}:$($env:API_PORT)/assets-data"
-    Update-EnvFile ".env" "APP_ADDRESS" "${ip}"
-    Update-EnvFile ".env" "APP_URL"       "http://${ip}"
-    Update-EnvFile ".env" "API_URL"       "http://${ip}:$($env:API_PORT)"
-    Update-EnvFile ".env" "ADMIN_URL"     "http://${ip}:$($env:ADMIN_PORT)"
+    Update-EnvFile $envPath "FILE_SERVER_URL" "http://${ip}:$($env:API_PORT)/assets-data"
+    Update-EnvFile $envPath "APP_ADDRESS" "${ip}"
+    Update-EnvFile $envPath "APP_URL"       "http://${ip}"
+    Update-EnvFile $envPath "API_URL"       "http://${ip}:$($env:API_PORT)"
+    Update-EnvFile $envPath "ADMIN_URL"     "http://${ip}:$($env:ADMIN_PORT)"
 
 
     Import-EnvFile

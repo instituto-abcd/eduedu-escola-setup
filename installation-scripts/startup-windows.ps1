@@ -775,12 +775,18 @@ function Update-SetupFiles($Tag) {
 # instalacao. Alem disso, rebaixar o instalador junto levaria a scripts que nao conhecem
 # este fluxo - foi o que se observou ao instalar a v1.3.1 a partir de uma beta.
 function Set-TargetVersion($Tag) {
-    if (-not (Test-VersionIsNewer $env:APP_VERSION $Tag)) {
+    # Compara com o que esta INSTALADO, nao com o APP_VERSION do .env: se alguem trocou os
+    # arquivos da pasta, o .env aponta para uma versao que a maquina nunca rodou, e uma
+    # atualizacao legitima seria recusada como se fosse downgrade.
+    $referencia = Get-InstalledVersion
+    if (-not $referencia) { $referencia = $env:APP_VERSION }
+
+    if (-not (Test-VersionIsNewer $referencia $Tag)) {
         Write-Host ""
-        if ($Tag -eq $env:APP_VERSION) {
+        if ($Tag -eq $referencia) {
             Write-Color "A versao $Tag ja e a atual - nao ha o que atualizar." Yellow
         } else {
-            Write-Color "A versao $Tag e anterior a atual ($env:APP_VERSION)." Red
+            Write-Color "A versao $Tag e anterior a atual ($referencia)." Red
             Write-Color "Voltar para uma versao anterior nao e suportado: o banco de dados ja" Red
             Write-Color "pode ter sido atualizado e nao consegue voltar atras sozinho." Red
             Write-Color "Se precisar disso, procure o suporte do Instituto ABCD." Yellow
@@ -1305,6 +1311,24 @@ function Assert-NoForeignContainers {
     exit 1
 }
 
+# A versao realmente instalada esta nos containers, nao no .env.
+#
+# Quando alguem copia os arquivos de uma versao nova por cima de uma pasta que ja tem
+# instalacao - que e exatamente o passo manual necessario para entrar na linha que se
+# atualiza sozinha -, o APP_VERSION do .env passa a ser o do pacote, enquanto o que esta
+# no ar continua sendo o de antes. Ler o .env ali afirmaria uma versao instalada que nunca
+# foi instalada, e a comparacao com a ultima release sairia errada junto.
+function Get-InstalledVersion {
+    $ids = (docker compose ps -aq backend 2>$null | Out-String).Trim()
+    if (-not $ids) { return $null }
+
+    $id = ($ids -split "`r?`n")[0]
+    $img = (docker inspect $id --format '{{.Config.Image}}' 2>$null | Out-String).Trim()
+
+    if ($img -match ':([^:/]+)$') { return $matches[1] }
+    return $null
+}
+
 function Test-ExistingInstallation {
     $containers = (docker compose ps -aq 2>$null | Out-String).Trim()
     if ($containers) { return $true }
@@ -1348,8 +1372,20 @@ function Show-MainMenu {
         return
     }
 
-    $current    = $env:APP_VERSION
-    $hasInstall = Test-ExistingInstallation
+    # Duas versoes diferentes, que so coincidem quando ninguem mexeu nos arquivos a mao:
+    #   $versaoPacote   - o que os arquivos desta pasta dizem (APP_VERSION do .env)
+    #   $versaoInstalada- o que esta de fato rodando, lido dos containers
+    # $current e a referencia honesta: a instalada quando existe, senao a do pacote.
+    $versaoPacote    = $env:APP_VERSION
+    $hasInstall      = Test-ExistingInstallation
+    $versaoInstalada = if ($hasInstall) { Get-InstalledVersion } else { $null }
+    $current         = if ($versaoInstalada) { $versaoInstalada } else { $versaoPacote }
+
+    # Arquivos trocados por baixo de uma instalacao existente: o pacote aponta para uma
+    # versao e a maquina roda outra. Build-Images usa APP_VERSION, entao seguir adiante
+    # instala a do pacote - e o menu precisa dizer isso, nao esconder.
+    $arquivosDivergem = $versaoInstalada -and ($versaoPacote -ne $versaoInstalada)
+
     $latest     = Get-LatestSetupVersion
     $canUpdate  = $latest -and (Test-VersionIsNewer $current $latest)
 
@@ -1393,8 +1429,14 @@ function Show-MainMenu {
         $actions += @{ Key = "update"; Tag = $prerelease; Text = "$texto  [VERSAO DE TESTE]"; Hint = "ainda em teste - nao use no computador da escola" }
     }
     if ($hasInstall) {
-        $actions += @{ Key = "restart"; Tag = $current; Text = "Iniciar o EduEdu+ novamente ($current)"; Hint = "mantem todos os dados" }
-        $actions += @{ Key = "clean";   Tag = $current; Text = "Instalar do zero - APAGA TODOS OS DADOS"; Hint = "" }
+        # O rotulo precisa anunciar a versao que sera de fato aplicada - a do pacote -,
+        # e nao a que esta rodando. Com os arquivos trocados, as duas diferem.
+        if ($arquivosDivergem) {
+            $actions += @{ Key = "restart"; Tag = $versaoPacote; Text = "Aplicar a versao $versaoPacote dos arquivos desta pasta"; Hint = "mantem todos os dados - hoje esta rodando a $versaoInstalada" }
+        } else {
+            $actions += @{ Key = "restart"; Tag = $current; Text = "Iniciar o EduEdu+ novamente ($current)"; Hint = "mantem todos os dados" }
+        }
+        $actions += @{ Key = "clean";   Tag = $versaoPacote; Text = "Instalar do zero - APAGA TODOS OS DADOS"; Hint = "" }
     } else {
         $rotulo = if ($pacoteEhTeste) { "Instalar $current mesmo assim  [VERSAO DE TESTE]" } else { "Instalar agora ($current)" }
         $dica   = if ($pacoteEhTeste) { "ainda em teste - pode apresentar falhas" } else { "" }
@@ -1410,6 +1452,14 @@ function Show-MainMenu {
     # falso - e e justamente o que alguem le antes de decidir apagar dados.
     if ($hasInstall) {
         Write-Color "Versao instalada neste computador: $current" White
+
+        if ($arquivosDivergem) {
+            Write-Host ""
+            Write-Color "Os arquivos desta pasta sao da versao $versaoPacote." Yellow
+            Write-Color "Alguem os substituiu depois da instalacao. Ao continuar, esta" Yellow
+            Write-Color "maquina passa da $versaoInstalada para a $versaoPacote." Yellow
+            Write-Host ""
+        }
 
         if ($canUpdate) {
             Write-Color "Versao mais recente disponivel   : $latest" Yellow

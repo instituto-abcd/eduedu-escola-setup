@@ -22,6 +22,9 @@ $hasDocker=$false
 $hasWinget=$false
 $hasWsl=$false
 
+# "install" (limpa) ou "update" - definido em Ask-InstallOrUpdate
+$installAction = "install"
+
 # ----------------- Utilitarios -----------------
 
 function Write-Color($Text, $Color="White") {
@@ -65,6 +68,61 @@ function Ask-YesNo($Question) {
 }
 
 # ----------------- Validacoes -----------------
+function Ensure-NotOneDrive {
+    # Resolve o caminho absoluto real do projeto
+    $resolved = (Resolve-Path $projectRoot).Path
+
+    # Coleta as raizes conhecidas do OneDrive a partir das variaveis de ambiente
+    $oneDriveRoots = @(
+        $env:OneDrive,
+        $env:OneDriveConsumer,
+        $env:OneDriveCommercial
+    ) | Where-Object { $_ -and (Test-Path $_) } | ForEach-Object { (Resolve-Path $_).Path }
+
+    $insideOneDrive = $false
+    $sep = [System.IO.Path]::DirectorySeparatorChar
+
+    foreach ($root in $oneDriveRoots) {
+        if ($resolved -eq $root -or $resolved.StartsWith("$root$sep", [System.StringComparison]::OrdinalIgnoreCase)) {
+            $insideOneDrive = $true
+            break
+        }
+    }
+
+    # Fallback: detecta pastas OneDrive pelo nome no caminho (ex.: "OneDrive", "OneDrive - Empresa")
+    if (-not $insideOneDrive -and $resolved -match '(^|\\)OneDrive( -[^\\]*)?(\\|$)') {
+        $insideOneDrive = $true
+    }
+
+    if ($insideOneDrive) {
+        Write-Host ""
+        Write-Color "==================== ATENCAO ====================" Red
+        Write-Color "O projeto esta sendo executado dentro de uma pasta do OneDrive:" Red
+        Write-Color "  $resolved" Yellow
+        Write-Host ""
+        Write-Color "Instalar o EduEdu+ dentro do OneDrive NAO e suportado e pode causar:" Red
+        Write-Color "  - Corrupcao dos dados de Postgres/Mongo (a sincronizacao trava arquivos)" White
+        Write-Color "  - Conflitos de sincronizacao e uso excessivo de banda/armazenamento" White
+        Write-Color "  - Falhas nos bind mounts do Docker" White
+        Write-Host ""
+        Write-Color "Mova a pasta do projeto para um caminho local fora do OneDrive" Yellow
+        Write-Color "(ex.: C:\eduedu) e execute a instalacao novamente." Yellow
+        Write-Host ""
+
+        if ($env:EDUEDU_ALLOW_ONEDRIVE -eq "1") {
+            Write-Color "EDUEDU_ALLOW_ONEDRIVE=1 definido. Prosseguindo por sua conta e risco..." DarkYellow
+            Write-Host ""
+            return
+        }
+
+        Write-Color "Instalacao interrompida." Red
+        Write-Host ""
+        Write-Host "Pressione Enter para fechar..."
+        Read-Host
+        exit 1
+    }
+}
+
 function Ensure-Docker {
     if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
         if(-not (Ask-YesNo "Docker nao encontrado. Deseja instalar agora?")) {
@@ -241,23 +299,138 @@ function Build-Images {
 
 # ----------------- Containers -----------------
 
+function Get-PostgresImage {
+    if ($env:POSTGRES_IMAGE) { return $env:POSTGRES_IMAGE }
+    return "postgres:17.6"   # mantenha em sincronia com o default do docker-compose.yml
+}
+
+# Descobre o volume que o compose realmente monta em /var/lib/postgresql/data.
+# O compose prefixa volumes nomeados com o nome do projeto (ex.: setup_pgdata),
+# por isso o nome nunca deve ser assumido como "pgdata".
+function Get-PostgresVolume {
+    docker compose create postgres 2>&1 | Out-Null
+    $volume = docker inspect postgres --format '{{range .Mounts}}{{if eq .Destination "/var/lib/postgresql/data"}}{{.Name}}{{end}}{{end}}'
+    return ($volume | Out-String).Trim()
+}
+
+# Restaura um snapshot de ./postgres-data ANTES do primeiro start do Postgres.
+# Copiar arquivos com o container no ar sobrescreve o cluster durante o initdb e
+# quebra roles/pg_hba.conf - foi o que gerava o erro "denied access on the database".
+function Restore-PostgresSnapshot {
+    $snapshot = Join-Path (Resolve-Path $projectRoot).Path "postgres-data"
+
+    if (-not (Test-Path $snapshot)) { return }
+
+    if ($script:installAction -eq "install") {
+        Write-Color "Instalacao limpa: snapshot em ./postgres-data sera ignorado (banco criado do zero)." Yellow
+        Write-Color "Se quiser aproveitar esses dados, escolha a opcao de atualizacao." Yellow
+        return
+    }
+
+    if (-not (Test-Path (Join-Path $snapshot "PG_VERSION"))) {
+        Write-Color "A pasta ./postgres-data existe mas nao contem um cluster valido (PG_VERSION ausente)." DarkYellow
+        Write-Color "Restauracao ignorada - o Postgres sera inicializado do zero." DarkYellow
+        return
+    }
+
+    $image  = Get-PostgresImage
+    $volume = Get-PostgresVolume
+
+    if (-not $volume) {
+        Write-Color "Nao foi possivel identificar o volume de dados do Postgres. Restauracao ignorada." DarkYellow
+        return
+    }
+
+    # Nao sobrescreve um cluster existente (caminho de atualizacao)
+    $hasCluster = (docker run --rm -v "${volume}:/target" --entrypoint sh $image -c "[ -f /target/PG_VERSION ] && echo yes || echo no" | Out-String).Trim()
+    if ($hasCluster -eq "yes") {
+        Write-Color "Volume $volume ja possui um cluster. Snapshot de ./postgres-data ignorado (dados atuais preservados)." Yellow
+        return
+    }
+
+    # Major version do snapshot precisa casar com a da imagem
+    $snapshotMajor = (Get-Content (Join-Path $snapshot "PG_VERSION") -Raw).Trim()
+    $imageMajor    = ((docker run --rm --entrypoint postgres $image --version | Out-String) -replace '[^0-9\. ]', '').Trim().Split(' ')[-1].Split('.')[0]
+
+    if ($snapshotMajor -ne $imageMajor) {
+        Write-Color "Snapshot em ./postgres-data e do PostgreSQL $snapshotMajor, mas a imagem e a $imageMajor." Red
+        Write-Color "Restaurar dados entre versoes maiores diferentes nao funciona." Red
+        Write-Color "Opcoes: definir POSTGRES_IMAGE=postgres:$snapshotMajor no .env, ou remover/renomear ./postgres-data." Yellow
+        exit 1
+    }
+
+    Write-Color "Restaurando snapshot de ./postgres-data no volume $volume..." Yellow
+    docker run --rm -v "${volume}:/target" -v "${snapshot}:/snapshot:ro" --entrypoint sh $image `
+        -c "cp -a /snapshot/. /target/ && chown -R postgres:postgres /target && chmod 700 /target"
+
+    if ($LASTEXITCODE -ne 0) {
+        Write-Color "Falha ao restaurar o snapshot do Postgres." Red
+        exit 1
+    }
+}
+
+# Testa exatamente o caminho que o backend usa: TCP, via rede do Docker,
+# com usuario/senha/database do .env (valida senha, role e pg_hba.conf).
+function Test-PostgresAccess {
+    $network = (docker inspect postgres --format '{{range $k, $v := .NetworkSettings.Networks}}{{$k}} {{end}}' | Out-String).Trim().Split(' ')[0]
+    if (-not $network) { return $false }
+
+    $null = docker run --rm --network $network -e "PGPASSWORD=$env:POSTGRES_PASSWORD" --entrypoint psql (Get-PostgresImage) `
+        -h postgres -p 5432 -U $env:POSTGRES_USER -d $env:POSTGRES_DB -c "SELECT 1" 2>&1
+
+    return ($LASTEXITCODE -eq 0)
+}
+
+function Wait-Postgres {
+    Write-Host "`n[ - ] Aguardando o Postgres aceitar conexoes:" -ForegroundColor Yellow
+
+    $maxRetries = 30
+    $attempt = 1
+
+    while ($attempt -le $maxRetries) {
+        if (Test-PostgresAccess) {
+            Write-Host "[ OK ] Postgres pronto ($env:POSTGRES_USER@$env:POSTGRES_DB)`n" -ForegroundColor Green
+            return
+        }
+
+        Write-Host "[ Tentativa $attempt/$maxRetries ] Postgres ainda nao aceitou a conexao..." -ForegroundColor Yellow
+        Start-Sleep -Seconds 3
+        $attempt++
+    }
+
+    Write-Host ""
+    Write-Color "[ ERRO ] O Postgres subiu mas recusou a conexao de $env:POSTGRES_USER em $env:POSTGRES_DB." Red
+    Write-Color "Sem isso o backend falha com 'denied access on the database'. Instalacao interrompida." Red
+    Write-Host ""
+    Write-Color "Causa mais comum: volume de dados de uma instalacao anterior, com senha/database diferentes" Yellow
+    Write-Color "do .env atual (POSTGRES_DB/POSTGRES_USER/POSTGRES_PASSWORD so valem quando o volume esta vazio)." Yellow
+    Write-Color "Para recriar o banco do zero (apaga os dados atuais): docker compose down -v" Yellow
+    Write-Host ""
+    Write-Color "Ultimas linhas do log do Postgres:" Yellow
+    docker logs postgres --tail 30
+
+    exit 1
+}
+
 function Compose-Containers {
     Push-Location $projectRoot
-    
+
     Write-Color "------- Subindo Containers -------" Cyan
 
-    docker volume create pgdata
+    Restore-PostgresSnapshot
 
     docker compose up -d postgres --quiet-pull
-    docker cp ./postgres-data/. postgres:/var/lib/postgresql/data/
-    docker exec -it postgres bash -c "chown -R postgres:postgres /var/lib/postgresql/data"
-    docker restart postgres
+    Wait-Postgres
 
     docker compose up -d mongo --quiet-pull
     Start-Sleep -Seconds 15
+
+    # migration e backend esperam o healthcheck do postgres (docker-compose.yml)
     docker compose up -d --quiet-pull
 
     Write-Color "----------------------------------" Cyan
+
+    Pop-Location
 }
 
 # ----------------- Validações HTTP -----------------
@@ -297,17 +470,38 @@ function Init-Services {
 }
 
 # ----------------- Instalação/Atualização -----------------
+function Remove-ImageIfExists($Repository) {
+    $ids = docker images -q $Repository
+    if ($ids) { docker rmi -f $ids | Out-Null }
+}
+
 function Stop-CurrentContainers($Action) {
+    # Sempre "docker compose" (plugin v2). O binario legado "docker-compose" nao existe
+    # em instalacoes recentes do Docker Desktop: se ele falhar aqui, os volumes antigos
+    # sobrevivem a uma instalacao limpa e o banco continua com a senha/database anteriores.
     switch ($Action) {
         "install" {
-            Write-Color "Parando containers e removendo imagens" Yellow
-            docker-compose down --rmi all -v
+            Write-Color "Parando containers e removendo imagens e volumes" Yellow
+            docker compose down --rmi all --volumes --remove-orphans
+
+            if ($LASTEXITCODE -ne 0) {
+                Write-Color "Falha ao remover containers/volumes da instalacao anterior." Red
+                Write-Color "Prosseguir manteria o banco antigo e causaria erro de acesso no backend." Red
+                Write-Color "Rode 'docker compose down --rmi all --volumes --remove-orphans' manualmente e tente de novo." Yellow
+                exit 1
+            }
         }
         "update" {
             Write-Color "Parando containers e removendo imagens" Yellow
-            docker-compose down --remove-orphans
-            docker rmi -f (docker images -q "eduedu-escola-admin")
-            docker rmi -f (docker images -q "eduedu-escola-aluno")
+            docker compose down --remove-orphans
+
+            if ($LASTEXITCODE -ne 0) {
+                Write-Color "Falha ao parar os containers atuais." Red
+                exit 1
+            }
+
+            Remove-ImageIfExists "eduedu-escola-admin"
+            Remove-ImageIfExists "eduedu-escola-aluno"
         }
         default {
             Write-Color "Acao invalida" Red
@@ -317,6 +511,8 @@ function Stop-CurrentContainers($Action) {
 }
 
 function Ask-InstallOrUpdate {
+    $script:installAction = "install"
+
     $containers = docker ps -q
     $images = docker images -q
     if ($containers -or $images) {
@@ -328,10 +524,10 @@ function Ask-InstallOrUpdate {
         switch ($opt) {
             "1" {
                 $c = Read-Host "Tem certeza que deseja prosseguir? (s/n)"
-                if ($c -eq "s") { Stop-CurrentContainers install }
+                if ($c -eq "s") { $script:installAction = "install"; Stop-CurrentContainers install }
                 else { exit 0 }
             }
-            "2" { Stop-CurrentContainers update }
+            "2" { $script:installAction = "update"; Stop-CurrentContainers update }
             "3" { exit 0 }
             default { Write-Color "Opcao invalida" Red; exit 1 }
         }
@@ -344,12 +540,19 @@ function Ask-InstallOrUpdate {
 function Main {
     $start = Get-Date
 
+    # Bloqueia execucao dentro de pastas do OneDrive (antes de qualquer alteracao)
+    Ensure-NotOneDrive
+
+    # MONGO_URI e DATABASE_URL sao usadas de dentro da rede do Docker, onde as portas
+    # sao sempre as internas (27017 e 5432). POSTGRES_PORT/MONGO_PORT valem apenas
+    # para o mapeamento no host.
+
     # Atualiza MONGO_URI
-    Update-EnvFile ".env" "MONGO_URI" "mongodb://${env:MONGO_USER}:${env:MONGO_PASSWORD}@mongo:${env:MONGO_PORT}/eduedu?authSource=admin"
+    Update-EnvFile ".env" "MONGO_URI" "mongodb://${env:MONGO_USER}:${env:MONGO_PASSWORD}@mongo:27017/eduedu?authSource=admin"
 
 
     # Atualiza DATABASE_URL
-    Update-EnvFile ".env" "DATABASE_URL" "postgresql://${env:POSTGRES_USER}:${env:POSTGRES_PASSWORD}@postgres:${env:POSTGRES_PORT}/${env:POSTGRES_DB}?schema=public"
+    Update-EnvFile ".env" "DATABASE_URL" "postgresql://${env:POSTGRES_USER}:${env:POSTGRES_PASSWORD}@postgres:5432/${env:POSTGRES_DB}?schema=public"
 
     Prerequisites
     Ask-InstallOrUpdate

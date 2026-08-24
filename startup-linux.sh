@@ -39,6 +39,49 @@ spinner() {
     echo_success "$success_message"
 }
 
+# Função para bloquear a execução dentro de pastas do OneDrive
+ensure_not_onedrive() {
+    # Resolve o caminho absoluto real do projeto
+    local project_dir
+    project_dir="$(cd "$SCRIPT_DIR" &>/dev/null && pwd -P)"
+
+    local inside=false
+
+    # Detecta OneDrive pelas variáveis de ambiente (úteis no WSL/Windows)
+    local root
+    for root in "$OneDrive" "$OneDriveConsumer" "$OneDriveCommercial"; do
+        if [ -n "$root" ]; then
+            case "$project_dir" in
+                "$root"|"$root"/*) inside=true ;;
+            esac
+        fi
+    done
+
+    # Fallback: detecta OneDrive pelo nome no caminho (ex.: "OneDrive", "OneDrive - Empresa")
+    case "$project_dir" in
+        */OneDrive|*/OneDrive/*|*/OneDrive\ -\ *) inside=true ;;
+    esac
+
+    if [ "$inside" = true ]; then
+        printf "\n"
+        printf "==================== ATENÇÃO ====================\n"
+        printf "O projeto está sendo executado dentro de uma pasta do OneDrive:\n"
+        printf "  %s\n\n" "$project_dir"
+        printf "Instalar o EduEdu+ dentro do OneDrive NÃO é suportado e pode causar:\n"
+        printf "  - Corrupção dos dados de Postgres/Mongo (a sincronização trava arquivos)\n"
+        printf "  - Conflitos de sincronização e uso excessivo de banda/armazenamento\n"
+        printf "  - Falhas nos bind mounts do Docker\n\n"
+        printf "Mova a pasta do projeto para um caminho local fora do OneDrive e execute novamente.\n\n"
+
+        if [ "$EDUEDU_ALLOW_ONEDRIVE" = "1" ]; then
+            printf "EDUEDU_ALLOW_ONEDRIVE=1 definido. Prosseguindo por sua conta e risco...\n\n"
+            return 0
+        fi
+
+        echo_fail "Instalação interrompida (projeto dentro do OneDrive)."
+    fi
+}
+
 # Função para instalar o wget se não estiver instalado
 install_wget() {
     # Verifica se o comando wget está disponível
@@ -124,11 +167,59 @@ build_frontend() {
     echo ""
 }
 
+# Imagem usada nas verificações de Postgres (default igual ao do compose)
+postgres_image() {
+    printf "%s" "${POSTGRES_IMAGE:-postgres:17.6}"
+}
+
+# Testa exatamente o caminho que o backend usa: TCP, via rede do Docker,
+# com usuário/senha/database do .env (valida senha, role e pg_hba.conf).
+test_postgres_access() {
+    local network
+    network=$(docker inspect postgres --format '{{range $k, $v := .NetworkSettings.Networks}}{{$k}} {{end}}' 2>/dev/null | awk '{print $1}')
+    [ -n "$network" ] || return 1
+
+    docker run --rm --network "$network" -e PGPASSWORD="${POSTGRES_PASSWORD}" \
+        --entrypoint psql "$(postgres_image)" \
+        -h postgres -p 5432 -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -c "SELECT 1" >/dev/null 2>&1
+}
+
+# Não deixa migration/backend subirem sem o banco aceitar a conexão:
+# sem isso o backend falha com "denied access on the database".
+wait_postgres() {
+    local attempt=1
+    local max_retries=30
+
+    while [ "$attempt" -le "$max_retries" ]; do
+        if test_postgres_access; then
+            echo_success "Postgres pronto (${POSTGRES_USER}@${POSTGRES_DB})"
+            return 0
+        fi
+
+        printf "[ Tentativa %s/%s ] Postgres ainda não aceitou a conexão...\n" "$attempt" "$max_retries"
+        sleep 3
+        attempt=$((attempt + 1))
+    done
+
+    printf "\nO Postgres subiu mas recusou a conexão de %s em %s.\n" "${POSTGRES_USER}" "${POSTGRES_DB}"
+    printf "Causa mais comum: diretório de dados de uma instalação anterior, com senha/database\n"
+    printf "diferentes do .env atual (POSTGRES_DB/POSTGRES_USER/POSTGRES_PASSWORD só valem\n"
+    printf "quando %s está vazio).\n\n" "${POSTGRES_DATA}"
+    printf "Últimas linhas do log do Postgres:\n"
+    docker logs postgres --tail 30
+
+    echo_fail "Banco de dados inacessível. Instalação interrompida."
+}
+
 # Função para iniciar ou reiniciar os containers da aplicação
 compose_containers() {
     echo "------- Inicialização dos Containers da Aplicação -------"
 
     cd "$SCRIPT_DIR" || exit
+
+    docker-compose -f docker-compose.linux.yml up -d postgres
+    wait_postgres
+
     docker-compose -f docker-compose.linux.yml up -d
 
     echo "---------------------------------------------------------"
@@ -286,6 +377,9 @@ ask_installation_or_update() {
 # Função principal
 main() {
     start=$(date +%s)
+
+    # Bloqueia execução dentro de pastas do OneDrive (antes de qualquer alteração)
+    ensure_not_onedrive
 
     prerequisites
     

@@ -1,7 +1,7 @@
 services:
   postgres:
     container_name: postgres
-    image: postgres:17.6
+    image: ${POSTGRES_IMAGE:-postgres:17.6}
     restart: always
     hostname: localhost
     volumes:
@@ -12,6 +12,12 @@ services:
       - host.docker.internal:host-gateway
     env_file:
       - .env
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 24
+      start_period: 30s
     networks:
       - app-network
 
@@ -35,9 +41,12 @@ services:
 
   migration:
     image: eduedu-escola-backend:${APP_VERSION}
+    restart: "on-failure:5"
     depends_on:
-      - postgres
-      - mongo
+      postgres:
+        condition: service_healthy
+      mongo:
+        condition: service_started
     extra_hosts:
       - host.docker.internal:host-gateway
     env_file:
@@ -52,9 +61,12 @@ services:
     image: eduedu-escola-backend:${APP_VERSION}
     restart: always
     depends_on:
-      - postgres
-      - mongo
-      - migration
+      postgres:
+        condition: service_healthy
+      mongo:
+        condition: service_started
+      migration:
+        condition: service_completed_successfully
     extra_hosts:
       - host.docker.internal:host-gateway
     ports:

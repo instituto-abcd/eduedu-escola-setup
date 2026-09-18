@@ -75,6 +75,11 @@ services:
       - ${API_PORT}:3000
     volumes:
       - ${FILE_SERVER_DATA}:/usr/src/app/dist/assets-data
+      # Os backups gerados pela aplicação ficam nesta pasta, na raiz da
+      # instalação. Sem o mapeamento eles ficariam dentro do container e
+      # seriam perdidos toda vez que ele fosse recriado — o que acontece em
+      # cada atualização de APP_VERSION.
+      - ${BACKUP_DATA:-./backup-data}:/usr/src/app/backup
     env_file:
       - .env
     networks:

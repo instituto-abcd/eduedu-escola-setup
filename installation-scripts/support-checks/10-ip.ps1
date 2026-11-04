@@ -3,6 +3,7 @@
 # O IP da instalacao e o APP_ADDRESS que o instalador grava no .env. Os
 # portais admin e aluno sao buildados com esse IP: se ele nao estiver mais em
 # uma placa conectada a internet, os alunos nao conseguem acessar o EduEdu+.
+# O log registra so se o IP mudou, sem os IPs.
 
 function Test-IPv4Address($Value) {
     $parsed = $null
@@ -40,4 +41,14 @@ function Compare-InstallationIP {
         Changed = $true
         Reason  = "o IP gravado na instalacao nao esta em nenhuma placa conectada a internet (o IP mudou ou a instalacao gravou o IP de uma placa virtual)"
     }
+}
+
+Write-LogSection "Endereco IP"
+
+$comparison = Compare-InstallationIP
+$changed = if ($comparison.Changed -eq $true) { "Sim" } elseif ($comparison.Changed -eq $false) { "Nao" } else { "Indeterminado" }
+
+Write-LogItem "IP alterado desde a instalacao" $changed
+if ($comparison.Reason) {
+    Write-LogItem "Motivo" $comparison.Reason
 }

@@ -576,6 +576,11 @@ function Main {
     # Bloqueia execucao dentro de pastas do OneDrive (antes de qualquer alteracao)
     Ensure-NotOneDrive
 
+    # Detecta o IP antes de qualquer alteracao: sem Wi-Fi a instalacao para aqui,
+    # e nao depois de Ask-InstallOrUpdate ter parado containers ou apagado volumes
+    $ip = Get-MachineIP
+    Write-Color "IP detectado: $ip" Yellow
+
     # MONGO_URI e DATABASE_URL sao usadas de dentro da rede do Docker, onde as portas
     # sao sempre as internas (27017 e 5432). POSTGRES_PORT/MONGO_PORT valem apenas
     # para o mapeamento no host.
@@ -590,8 +595,6 @@ function Main {
     Prerequisites
     Ask-InstallOrUpdate
 
-    $ip = Get-MachineIP
-    Write-Color "IP detectado: $ip" Yellow
     Update-EnvFile ".env" "FILE_SERVER_URL" "http://${ip}:$($env:API_PORT)/assets-data"
     Update-EnvFile ".env" "APP_ADDRESS" "${ip}"
     Update-EnvFile ".env" "APP_URL"       "http://${ip}"

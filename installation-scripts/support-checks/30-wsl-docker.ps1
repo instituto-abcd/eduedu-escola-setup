@@ -76,8 +76,8 @@ if (-not $client.Found) {
     $desktop = Get-Process -Name "Docker Desktop" -ErrorAction SilentlyContinue
     Write-LogItem "Docker Desktop (aplicativo)" $(if ($desktop) { "Aberto" } else { "Fechado" })
 
-    $serviceStatus = Get-ServiceStatus "com.docker.service"
-    if ($serviceStatus) { Write-LogItem "Servico com.docker.service" $serviceStatus }
+    # O com.docker.service nao entra no log: e de inicio manual e fica parado
+    # mesmo com o Docker Engine rodando, o que confundiria quem le o log
 
     $engine = Invoke-Native "docker" @("version", "--format", "{{.Server.Version}}|{{.Server.Os}}") -TimeoutSec 30
 

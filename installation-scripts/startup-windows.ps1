@@ -232,27 +232,60 @@ function Prerequisites {
 }
 
 # ----------------- Funções Auxiliares -----------------
+# Primeiro IP privado (192.168.x.x, 10.x.x.x ou 172.16-31.x.x) da lista de
+# objetos de Get-NetIPAddress, mantendo a ordem recebida
+function Select-PrivateIP($Enderecos) {
+    $Enderecos |
+        Where-Object { $_.IPAddress -match '^(10\.\d{1,3}|192\.168|172\.(1[6-9]|2[0-9]|3[0-1]))\.\d{1,3}\.\d{1,3}$' } |
+        Select-Object -First 1
+}
+
+# IPs das placas Wi-Fi que saem para a internet: placa fisica, conectada, do tipo
+# 802.11 e com gateway padrao. O tipo vem do meio fisico, e nao do nome da conexao
+# ("Wi-Fi"), que muda com o idioma do Windows e pode ser renomeado. -Physical
+# descarta o Wi-Fi Direct virtual do Hotspot Movel (192.168.137.1).
+function Get-WifiInternetIPs {
+    $wifi = @(Get-NetAdapter -Physical -ErrorAction SilentlyContinue |
+        Where-Object { $_.Status -eq 'Up' -and $_.NdisPhysicalMedium -eq 9 } |  # 9 = Native 802.11
+        Select-Object -ExpandProperty ifIndex)
+    if ($wifi.Count -eq 0) { return }
+
+    $comGateway = @(Get-NetRoute -AddressFamily IPv4 -DestinationPrefix '0.0.0.0/0' -ErrorAction SilentlyContinue |
+        Where-Object { $wifi -contains $_.ifIndex -and $_.NextHop -ne '0.0.0.0' } |
+        Select-Object -ExpandProperty ifIndex)
+
+    Get-NetIPAddress -AddressFamily IPv4 -ErrorAction SilentlyContinue |
+        Where-Object { $comGateway -contains $_.InterfaceIndex -and $_.AddressState -eq 'Preferred' }
+}
+
 function Get-MachineIP {
-    # Tenta pegar um IP na faixa 192.168.x.x
-    $ip = Get-NetIPAddress -AddressFamily IPv4 |
-        Where-Object { $_.IPAddress -match '^192\.168\.\d{1,3}\.\d{1,3}$' } |
-        Select-Object -First 1 -ExpandProperty IPAddress
-
-    # Se não achar, tenta 10.x.x.x
-    if (-not $ip) {
-        $ip = Get-NetIPAddress -AddressFamily IPv4 |
-            Where-Object { $_.IPAddress -match '^10\.\d{1,3}\.\d{1,3}\.\d{1,3}$' } |
-            Select-Object -First 1 -ExpandProperty IPAddress
+    # O IP precisa ser o da placa Wi-Fi que sai para a internet. Pegar o primeiro
+    # IP privado de qualquer placa podia escolher o Hyper-V/WSL (vEthernet), o
+    # VirtualBox (192.168.56.1), o Hotspot Movel ou uma VPN, e os portais ficavam
+    # inacessiveis para os alunos.
+    $wifi = Select-PrivateIP (Get-WifiInternetIPs)
+    if ($wifi) {
+        Write-Color "Placa Wi-Fi conectada a internet: $($wifi.InterfaceAlias)" Green
+        return $wifi.IPAddress
     }
 
-    # Se ainda não achar, tenta 172.16–31.x.x
-    if (-not $ip) {
-        $ip = Get-NetIPAddress -AddressFamily IPv4 |
-            Where-Object { $_.IPAddress -match '^172\.(1[6-9]|2[0-9]|3[0-1])\.\d{1,3}\.\d{1,3}$' } |
-            Select-Object -First 1 -ExpandProperty IPAddress
-    }
-
-    return $ip
+    Write-Host ""
+    Write-Color "===================== ERRO =====================" Red
+    Write-Color "Nenhuma placa Wi-Fi conectada a internet foi encontrada." Red
+    Write-Color "O EduEdu+ precisa do IP da placa Wi-Fi para que os alunos acessem os portais." Red
+    Write-Host ""
+    Write-Color "Verifique se:" Yellow
+    Write-Color "  - o Wi-Fi deste computador esta ligado" White
+    Write-Color "  - o computador esta conectado a rede Wi-Fi da escola" White
+    Write-Color "  - a rede Wi-Fi tem acesso a internet" White
+    Write-Host ""
+    Write-Color "Depois, execute a instalacao novamente." Yellow
+    Write-Host ""
+    Write-Color "Instalacao interrompida." Red
+    Write-Host ""
+    Write-Host "Pressione Enter para fechar..."
+    Read-Host
+    exit 1
 }
 
 
@@ -543,6 +576,11 @@ function Main {
     # Bloqueia execucao dentro de pastas do OneDrive (antes de qualquer alteracao)
     Ensure-NotOneDrive
 
+    # Detecta o IP antes de qualquer alteracao: sem Wi-Fi a instalacao para aqui,
+    # e nao depois de Ask-InstallOrUpdate ter parado containers ou apagado volumes
+    $ip = Get-MachineIP
+    Write-Color "IP detectado: $ip" Yellow
+
     # MONGO_URI e DATABASE_URL sao usadas de dentro da rede do Docker, onde as portas
     # sao sempre as internas (27017 e 5432). POSTGRES_PORT/MONGO_PORT valem apenas
     # para o mapeamento no host.
@@ -557,8 +595,6 @@ function Main {
     Prerequisites
     Ask-InstallOrUpdate
 
-    $ip = Get-MachineIP
-    Write-Color "IP detectado: $ip" Yellow
     Update-EnvFile ".env" "FILE_SERVER_URL" "http://${ip}:$($env:API_PORT)/assets-data"
     Update-EnvFile ".env" "APP_ADDRESS" "${ip}"
     Update-EnvFile ".env" "APP_URL"       "http://${ip}"

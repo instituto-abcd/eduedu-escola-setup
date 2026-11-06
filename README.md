@@ -372,6 +372,18 @@ Para mais detalhes sobre como liberar portas, consulte os links abaixo:
 - **Windows**: [Criar uma regra de porta de entrada](https://learn.microsoft.com/pt-br/windows/security/operating-system-security/network-security/windows-firewall/create-an-inbound-port-rule)
 - **Windows**: [Criar uma regra de porta de entrada](https://learn.microsoft.com/pt-br/windows/security/operating-system-security/network-security/windows-firewall/create-an-inbound-port-rule)
 
+## Log de Suporte (Windows)
+
+Ao abrir um chamado de suporte, gere um log com o estado atual da instalação:
+
+1. Clique duas vezes em `Suporte-Windows.cmd`, na pasta do projeto
+2. Se solicitado, permita a execução como administrador
+3. Envie ao suporte o arquivo gerado em `logs\log_<data>.txt`. A pasta abre com o arquivo já selecionado, e o conteúdo também fica copiado na área de transferência
+
+O script só consulta informações: não altera containers, banco de dados, `.env` nem a rede. As senhas do `.env` aparecem mascaradas no log.
+
+---
+
 ## Contribuindo
 
 Contribuições são bem-vindas! Para contribuir:

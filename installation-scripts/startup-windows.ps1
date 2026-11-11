@@ -5,6 +5,70 @@
 $projectRoot = Join-Path $PSScriptRoot ".."
 Push-Location $projectRoot
 
+# ----------------- Integridade dos arquivos -----------------
+# Confere se os arquivos do instalador estao na pasta antes de qualquer outra etapa
+# (inclusive da leitura do .env logo abaixo). Um suporte foi aberto porque faltava o
+# docker-compose.yml: a instalacao so falhava na hora de parar os containers, com
+# "no configuration file provided: not found", sem dizer qual arquivo faltava.
+# Confere apenas presenca e tamanho: o .env e reescrito pelo instalador, entao
+# comparar hash acusaria erro em toda instalacao ja executada.
+function Test-InstallerFiles {
+    $pasta = (Resolve-Path $projectRoot).Path
+
+    $obrigatorios = @(
+        ".env",
+        "docker-compose.yml",
+        "installation-scripts\wsl-installation.ps1",
+        "installation-scripts\docker-installation.ps1"
+    )
+
+    $problemas = @()
+    foreach ($arquivo in $obrigatorios) {
+        $caminho = Join-Path $pasta $arquivo
+        if (-not (Test-Path -LiteralPath $caminho -PathType Leaf)) {
+            $problemas += "$arquivo (nao encontrado)"
+        } elseif ((Get-Item -LiteralPath $caminho -Force).Length -eq 0) {
+            # Download ou extracao interrompidos deixam o arquivo com 0 bytes
+            $problemas += "$arquivo (vazio)"
+        }
+    }
+
+    Write-Host "------ Integridade dos arquivos ------" -ForegroundColor Cyan
+
+    if ($problemas.Count -eq 0) {
+        Write-Host "Arquivos do instalador OK" -ForegroundColor Green
+        Write-Host "--------------------------------------" -ForegroundColor Cyan
+        return
+    }
+
+    Write-Host ""
+    Write-Host "===================== ERRO =====================" -ForegroundColor Red
+    Write-Host "Ha arquivos do instalador faltando ou incompletos nesta pasta:" -ForegroundColor Red
+    Write-Host "  $pasta" -ForegroundColor Yellow
+    Write-Host ""
+    Write-Host "Arquivos com problema:" -ForegroundColor Red
+    foreach ($problema in $problemas) {
+        Write-Host "  - $problema" -ForegroundColor White
+    }
+    Write-Host ""
+    Write-Host "Nada foi alterado neste computador." -ForegroundColor Yellow
+    Write-Host ""
+    Write-Host "Como resolver:" -ForegroundColor Yellow
+    Write-Host "  1. Baixe novamente o zip do instalador do EduEdu+" -ForegroundColor White
+    Write-Host "  2. Clique com o botao direito no zip e escolha 'Extrair tudo'" -ForegroundColor White
+    Write-Host "     (nao execute o instalador de dentro do zip)" -ForegroundColor White
+    Write-Host "  3. Copie os arquivos listados acima para esta pasta, nos mesmos lugares" -ForegroundColor White
+    Write-Host "  4. Execute o Instalador-Windows.cmd novamente" -ForegroundColor White
+    Write-Host ""
+    Write-Host "Instalacao interrompida." -ForegroundColor Red
+    Write-Host ""
+    Write-Host "Pressione Enter para fechar..."
+    Read-Host
+    exit 1
+}
+
+Test-InstallerFiles
+
 # Caminho do .env
 $envPath = Join-Path $projectRoot ".env"
 

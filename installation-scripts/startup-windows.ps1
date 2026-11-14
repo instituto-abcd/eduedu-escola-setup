@@ -218,7 +218,29 @@ function Ensure-WSL {
     # Monta o caminho absoluto para o script de instalação
     $installScript = Join-Path $PSScriptRoot "wsl-installation.ps1"
     if (Test-Path $installScript) {
+        # Limpa o codigo de um comando anterior: se o script filho terminar sem
+        # "exit" (erro inesperado), o valor antigo nao pode passar por sucesso
+        $global:LASTEXITCODE = $null
         & $installScript
+
+        # O "exit" do script filho encerra apenas o filho. Sem conferir o codigo de
+        # saida o instalador seguia para o Docker mesmo com o WSL ausente, recusado,
+        # com a instalacao falhada ou aguardando reinicializacao (EEP-671).
+        # 0 = WSL OK, 1 = falha, 2 = recusado ou aguardando reinicializacao
+        $wslExitCode = $LASTEXITCODE
+        if ($null -eq $wslExitCode) { $wslExitCode = 1 }
+        if ($wslExitCode -ne 0) {
+            if ($wslExitCode -ne 2) {
+                Write-Host ""
+                Write-Color "Instalacao interrompida." Red
+            }
+            # Mantem a mensagem na tela ate o operador ler
+            Write-Host ""
+            Write-Host "Pressione Enter para fechar..."
+            Read-Host
+            exit $wslExitCode
+        }
+
         [void]($hasWsl = $true)
     } else {
         Write-Color "Script de instalacao do WSL nao encontrado: $installScript" Red

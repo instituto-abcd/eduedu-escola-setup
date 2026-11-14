@@ -52,6 +52,8 @@
 
    Para concluir a instalação da ferramenta WSL, reinicie o computador apertando “s” e em seguida “Enter”. Após a reinicialização, execute novamente o arquivo `Instalador-Windows.cmd`.
 
+   Se o WSL não puder ser instalado ou usado (por exemplo, quando a rede bloqueia o download ou quando a virtualização está desabilitada na BIOS/UEFI), a janela mostra uma mensagem de **ERRO** com o motivo e os passos para resolver, e a instalação é interrompida. Siga os passos indicados e execute novamente o arquivo `Instalador-Windows.cmd`.
+
    c. **Docker não instalado:**
 
    <img src="https://github.com/user-attachments/assets/1230922f-c63e-472a-a429-1f53f982c6b5" width="800" height="450" />
